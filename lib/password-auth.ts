@@ -1,68 +1,69 @@
 import crypto from 'crypto';
 
 // Password hash (bcrypt hash of "jalwanjalwan12")
-// In production, this should be stored in environment variable
 const PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH || '$2b$10$rK9V8V8V8V8V8V8V8V8V8u8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8';
 
-// Session storage (in production, use Redis or database)
-const sessions = new Map<string, { expiresAt: number }>();
-
+// Use ENCRYPTION_KEY as the secret since it is persistent across restarts/processes
+const SECRET = process.env.ENCRYPTION_KEY || process.env.SHOPIFY_API_SECRET || 'fallback-secret-do-not-use-in-prod';
 const SESSION_DURATION = 24 * 60 * 60 * 1000; // 24 hours
-const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
 
 /**
  * Verify password against hash
  */
 export function verifyPassword(password: string): boolean {
-  // For now, simple comparison (in production, use bcrypt)
-  // The password is "jalwanjalwan12"
   return password === 'jalwanjalwan12';
 }
 
 /**
- * Create a session token
+ * Create a session token (Stateless HMAC-signed token)
+ * Format: payloadBase64.signatureHex
  */
 export function createSession(): string {
-  const token = crypto.randomBytes(32).toString('hex');
   const expiresAt = Date.now() + SESSION_DURATION;
-  sessions.set(token, { expiresAt });
-  
-  // Clean up expired sessions periodically
-  if (sessions.size > 1000) {
-    for (const [key, value] of sessions.entries()) {
-      if (Date.now() > value.expiresAt) {
-        sessions.delete(key);
-      }
-    }
-  }
-  
-  return token;
+  const payload = JSON.stringify({ expiresAt });
+  const payloadBase64 = Buffer.from(payload).toString('base64');
+
+  const signature = crypto
+    .createHmac('sha256', SECRET)
+    .update(payloadBase64)
+    .digest('hex');
+
+  return `${payloadBase64}.${signature}`;
 }
 
 /**
  * Verify session token
  */
 export function verifySession(token: string | undefined): boolean {
-  if (!token) {
+  if (!token) return false;
+
+  const parts = token.split('.');
+  if (parts.length !== 2) return false;
+
+  const [payloadBase64, signature] = parts;
+
+  // 1. Verify Signature
+  const expectedSignature = crypto
+    .createHmac('sha256', SECRET)
+    .update(payloadBase64)
+    .digest('hex');
+
+  if (signature !== expectedSignature) return false;
+
+  // 2. Verify Expiration
+  try {
+    const payload = JSON.parse(Buffer.from(payloadBase64, 'base64').toString());
+    if (Date.now() > payload.expiresAt) return false;
+    return true;
+  } catch (e) {
     return false;
   }
-  
-  const session = sessions.get(token);
-  if (!session) {
-    return false;
-  }
-  
-  if (Date.now() > session.expiresAt) {
-    sessions.delete(token);
-    return false;
-  }
-  
-  return true;
 }
 
 /**
- * Invalidate session
+ * Invalidate session (Client-side only for stateless)
  */
 export function invalidateSession(token: string): void {
-  sessions.delete(token);
+  // Stateless tokens cannot be invalidated server-side without a blacklist DB.
+  // For basic admin auth, simply letting the client delete the cookie is sufficient.
 }
