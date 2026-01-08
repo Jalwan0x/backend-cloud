@@ -1,0 +1,63 @@
+// This is your Prisma schema file,
+// more info in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Shop {
+  id          String   @id @default(cuid())
+  shopifyId   String   @unique
+  shopDomain  String   @unique
+  accessToken String
+  scopes      String
+  isActive    Boolean  @default(true)
+  isPlus      Boolean  @default(false)
+  showBreakdown Boolean @default(true)
+  sumRates     Boolean  @default(true)
+  enableSplitShipping Boolean @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  locationSettings LocationSetting[]
+  webhooks         Webhook[]
+
+  @@map("shops")
+}
+
+model LocationSetting {
+  id              String   @id @default(cuid())
+  shopId          String
+  shopifyLocationId String
+  locationName    String
+  shippingCost    Float    @default(0)
+  etaMin          Int      @default(1)
+  etaMax          Int      @default(2)
+  isActive        Boolean  @default(true)
+  priority        Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@unique([shopId, shopifyLocationId])
+  @@map("location_settings")
+}
+
+model Webhook {
+  id        String   @id @default(cuid())
+  shopId    String
+  topic     String
+  shopifyId String?  @unique
+  createdAt DateTime @default(now())
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@unique([shopId, topic])
+  @@map("webhooks")
+}

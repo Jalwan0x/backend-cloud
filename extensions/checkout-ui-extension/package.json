@@ -1,0 +1,9 @@
+{
+  "name": "checkout-ui-extension",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "@shopify/ui-extensions-react": "^2024.1.0",
+    "react-reconciler": "^0.29.0"
+  }
+}
