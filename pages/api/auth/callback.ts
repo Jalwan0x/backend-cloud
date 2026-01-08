@@ -14,7 +14,8 @@ export default async function handler(
   }
 
   try {
-    console.log('[OAuth Callback] Starting OAuth callback...');
+    console.log('OAUTH CALLBACK HIT - STARTING HANDLER');
+    console.log(`[OAuth Callback] Request URL: ${req.url}`);
 
     // Check if we have the shop parameter in query (from Shopify redirect)
     const shopFromQuery = req.query.shop as string;
@@ -57,7 +58,7 @@ export default async function handler(
         },
       });
 
-      console.log(`[OAuth Callback] Shop persisted successfully. ID: ${result.id}`);
+      console.log('SHOP SAVED TO DB - ID:', result.id);
 
     } catch (dbError: any) {
       console.error(`[OAuth Callback] CRITICAL DATABASE ERROR:`, dbError);
