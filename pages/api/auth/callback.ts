@@ -30,21 +30,25 @@ export default async function handler(
     });
 
     const { session } = callbackResponse;
-    console.log(`[OAuth Callback] OAuth successful for shop: ${session.shop}`);
+    console.log(`[OAuth Callback] OAuth successful. Session Shop: '${session.shop}'`);
 
-    // --- CRITICAL: PERSIST SHOP TO DB ---
-    // User requested explicit inline logic to fix "0 shops" issue.
-    // relying on storeShopSession was suspicious, so we do it here.
-    console.log(`[OAuth Callback] Persisting shop to database. Raw Domain: '${session.shop}'`);
+    // --- CRITICAL: SHOP NORMALIZATION & PERSISTENCE ---
+    // Ensure strict consistency with Admin API expectations
+
+    // 1. Normalize (Strip protocol, lowercase)
+    // "ws1gnf-sz.myshopify.com" should remain "ws1gnf-sz.myshopify.com"
+    const shop = session.shop.replace(/^https?:\/\//, "").toLowerCase();
+
+    console.log("🟢 SAVING SHOP:", shop);
 
     try {
       const encryptedToken = encrypt(session.accessToken || '');
-      const shopifyId = session.shop.replace('.myshopify.com', '');
+      // Shopify ID is the first part of the domain
+      const shopifyId = shop.replace('.myshopify.com', '');
 
-      console.log(`[OAuth Callback] Upserting with shopDomain: '${session.shop}'`);
-
+      // 2. Upsert using EXACT identifier
       const result = await prisma.shop.upsert({
-        where: { shopDomain: session.shop },
+        where: { shopDomain: shop },
         update: {
           accessToken: encryptedToken,
           scopes: session.scope || '',
@@ -52,16 +56,20 @@ export default async function handler(
           updatedAt: new Date(),
         },
         create: {
-          shopDomain: session.shop,
-          shopifyId: shopifyId, // Naive ID extraction if needed, or use specific ID from GraphQL if available later
+          shopDomain: shop,
+          shopifyId: shopifyId,
           accessToken: encryptedToken,
           scopes: session.scope || '',
           isActive: true,
         },
       });
 
-      console.log(`[OAuth Callback] SUCCESS: Shop saved. ID: ${result.id}`);
-      console.log(`[OAuth Callback] Saved Domain: '${result.shopDomain}'`);
+      console.log("🟢 SHOP SAVED SUCCESSFULLY:", result.shopDomain);
+
+      // 3. Count Verification
+      const count = await prisma.shop.count();
+      console.log("🧪 SHOP COUNT NOW:", count);
+
       console.log('SHOP SAVED TO DB - ID:', result.id);
 
     } catch (dbError: any) {
@@ -74,13 +82,13 @@ export default async function handler(
     // ------------------------------------
 
     // Register webhooks (non-blocking)
-    registerWebhooks(session.shop).catch(e => console.error('Webhook registration failed:', e));
+    registerWebhooks(shop).catch(e => console.error('Webhook registration failed:', e));
 
     // Register CarrierService (non-blocking)
-    registerCarrierService(session.shop).catch(e => console.error('CarrierService registration failed:', e));
+    registerCarrierService(shop).catch(e => console.error('CarrierService registration failed:', e));
 
     // Redirect to app
-    const redirectUrl = `https://${session.shop}/admin/apps/${process.env.SHOPIFY_API_KEY}`;
+    const redirectUrl = `https://${shop}/admin/apps/${process.env.SHOPIFY_API_KEY}`;
     res.redirect(redirectUrl);
 
   } catch (error: any) {
