@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '@/lib/db';
 import { verifyAuthCookie } from '@/lib/admin-auth';
+import { ensureDatabaseReady } from '@/lib/db-init';
 
 // --- SHOP DATA API (PROTECTED) ---
 
@@ -15,8 +16,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  // 2. DATABASE QUERY
+  // 2. DB INIT & QUERY
   try {
+    // Ensure DB is ready before querying
+    await ensureDatabaseReady();
+
     // Check connection/env first via a simple count
     // This catches "DATABASE_URL missing" errors gracefully
     const totalCount = await prisma.shop.count();
