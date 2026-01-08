@@ -13,12 +13,12 @@ export default async function handler(
   // Rate limiting
   const clientId = req.headers['x-forwarded-for'] as string || req.socket.remoteAddress || 'unknown';
   const rateLimitResult = checkRateLimit(`admin-login:${clientId}`);
-  
+
   if (!rateLimitResult.allowed) {
     res.setHeader('X-RateLimit-Limit', String(30));
     res.setHeader('X-RateLimit-Remaining', String(rateLimitResult.remaining));
     res.setHeader('X-RateLimit-Reset', String(Math.ceil(rateLimitResult.resetTime / 1000)));
-    return res.status(429).json({ 
+    return res.status(429).json({
       error: 'Too many login attempts. Please try again later.',
       retryAfter: Math.ceil((rateLimitResult.resetTime - Date.now()) / 1000),
     });
@@ -46,7 +46,7 @@ export default async function handler(
     const sessionToken = createSession();
 
     // Set HTTP-only cookie
-    res.setHeader('Set-Cookie', `admin_session=${sessionToken}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${24 * 60 * 60}`);
+    res.setHeader('Set-Cookie', `admin_session=${sessionToken}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${24 * 60 * 60}`);
 
     console.log(`Successful admin login from ${clientId}`);
     res.status(200).json({ success: true });
