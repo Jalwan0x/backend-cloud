@@ -26,15 +26,22 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const shop = typeof window !== 'undefined' 
+    const shop = typeof window !== 'undefined'
       ? new URLSearchParams(window.location.search).get('shop') || ''
       : '';
 
     if (shop) {
       fetch(`/api/shop?shop=${encodeURIComponent(shop)}`)
-        .then((res) => res.json())
+        .then((res) => {
+          if (res.status === 401 || res.status === 404) {
+            console.log('[Home] Shop not authenticated/found. Redirecting to OAuth...');
+            window.location.href = `/api/auth/begin?shop=${encodeURIComponent(shop)}`;
+            return null; // Stop chain
+          }
+          return res.json();
+        })
         .then((data) => {
-          if (data.shop) {
+          if (data && data.shop) {
             setShopInfo(data.shop);
           }
         })
@@ -50,7 +57,7 @@ export default function Home() {
   }, []);
 
   const handleGoToLocations = () => {
-    const shop = typeof window !== 'undefined' 
+    const shop = typeof window !== 'undefined'
       ? new URLSearchParams(window.location.search).get('shop') || ''
       : '';
     if (shop) {
@@ -61,7 +68,7 @@ export default function Home() {
   };
 
   return (
-    <Page 
+    <Page
       title="Cloudship - Warehouse Shipping"
       primaryAction={{
         content: 'Configure Warehouses',
@@ -98,12 +105,12 @@ export default function Home() {
                       <strong>Multi-Warehouse Support:</strong> Automatically groups cart items by warehouse location
                     </Text>
                   </InlineStack>
-                          <InlineStack gap="300" align="start">
-                            <Badge tone="success">✓</Badge>
-                            <Text as="p">
-                              <strong>Advanced/Plus Features:</strong> Enable split shipping options for Advanced and Plus stores
-                            </Text>
-                          </InlineStack>
+                  <InlineStack gap="300" align="start">
+                    <Badge tone="success">✓</Badge>
+                    <Text as="p">
+                      <strong>Advanced/Plus Features:</strong> Enable split shipping options for Advanced and Plus stores
+                    </Text>
+                  </InlineStack>
                   <InlineStack gap="300" align="start">
                     <Badge tone="success">✓</Badge>
                     <Text as="p">
