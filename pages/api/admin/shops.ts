@@ -30,12 +30,12 @@ export default async function handler(
   // SECURITY: Rate limiting
   const clientId = req.headers['x-forwarded-for'] as string || req.socket.remoteAddress || 'unknown';
   const rateLimitResult = checkRateLimit(`admin:${clientId}`);
-  
+
   if (!rateLimitResult.allowed) {
     res.setHeader('X-RateLimit-Limit', String(30));
     res.setHeader('X-RateLimit-Remaining', String(rateLimitResult.remaining));
     res.setHeader('X-RateLimit-Reset', String(Math.ceil(rateLimitResult.resetTime / 1000)));
-    return res.status(429).json({ 
+    return res.status(429).json({
       error: 'Too many requests. Please try again later.',
       retryAfter: Math.ceil((rateLimitResult.resetTime - Date.now()) / 1000),
     });
@@ -49,9 +49,15 @@ export default async function handler(
   // SECURITY: Verify password-based session
   // Parse cookies from request headers
   const cookies = req.headers.cookie || '';
+  console.log('[Admin API Debug] parsing cookies:', cookies); // Check if cookie exists
+
   const cookieMatch = cookies.match(/admin_session=([^;]+)/);
   const sessionToken = cookieMatch ? cookieMatch[1] : undefined;
-  
+
+  if (!sessionToken) {
+    console.log('[Admin API Debug] admin_session cookie not found in header');
+  }
+
   if (!verifySession(sessionToken)) {
     console.warn(`Unauthorized admin access attempt from ${clientId}`);
     return res.status(401).json({ error: 'Unauthorized. Please log in.' });
@@ -105,7 +111,7 @@ export default async function handler(
           const session = await getShopifySession(shop.shopDomain);
           if (session) {
             const client = new shopify.clients.Graphql({ session });
-            
+
             // Fetch shop details including owner email
             const shopQuery = `
               query {
