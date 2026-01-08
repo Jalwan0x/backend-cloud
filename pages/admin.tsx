@@ -82,50 +82,37 @@ export default function AdminPage() {
     setLoading(true);
     setError(null);
     try {
-      // First test database connection
-      const testRes = await fetch('/api/admin/test-db', {
-        credentials: 'include',
-      });
-      const testData = await testRes.json();
-      console.log('[Admin Page] Test DB result:', testData);
+      const res = await fetch('/api/admin/shops');
 
-      // Then fetch shops with details
-      const res = await fetch('/api/admin/shops', {
-        credentials: 'include',
-      });
-      const data = await res.json();
-      
-      console.log('[Admin Page] Shops API response:', { status: res.status, data });
-      
+      // 1. AUTH FAILED -> Redirect to Login
       if (res.status === 401) {
         setAuthorized(false);
         setShowLogin(true);
         return;
       }
 
-      if (!res.ok) {
-        setAuthorized(false);
-        setError(data.error || 'Failed to load shops');
+      // 2. SERVER ERROR (DB issues) -> Show Error, DO NOT Redirect
+      if (res.status === 500) {
+        const data = await res.json();
+        setError(`Server Error: ${data.details || data.error || 'Unknown error'}`);
+        // Keep authorized=true (or null) so we don't flip to login screen
+        // We want the user to see the error message.
         return;
       }
 
-      if (data.shops) {
-        console.log(`[Admin Page] Received ${data.shops.length} shops:`, data.shops);
-        setShops(data.shops);
+      // 3. SUCCESS
+      if (res.ok) {
+        const data = await res.json();
+        setShops(data.shops || []);
         setAuthorized(true);
-      } else if (data.error) {
-        console.error('[Admin Page] Error from API:', data.error);
-        setError(data.error);
-        setAuthorized(false);
       } else {
-        console.warn('[Admin Page] No shops or error in response:', data);
-        setError('No shops found in response');
-        setAuthorized(false);
+        // Other errors (404, etc)
+        setError('Failed to load shops (Unknown status)');
       }
+
     } catch (err: any) {
       console.error('[Admin Page] Failed to fetch shops:', err);
-      setError(err.message || 'Failed to load shops');
-      setAuthorized(false);
+      setError(err.message || 'Network failed');
     } finally {
       setLoading(false);
     }
@@ -177,10 +164,10 @@ export default function AdminPage() {
 
   const tableRows = shops.map((shop) => {
     const shopDisplayName = shop.shopName || shop.shopDomain.replace('.myshopify.com', '');
-    const ownerDisplay = shop.ownerName 
+    const ownerDisplay = shop.ownerName
       ? `${shop.ownerName}${shop.ownerEmail ? ` (${shop.ownerEmail})` : ''}`
       : shop.ownerEmail || 'N/A';
-    
+
     const statusBadge = shop.isActive ? (
       <Badge tone="success">Active</Badge>
     ) : (
@@ -290,7 +277,7 @@ export default function AdminPage() {
         <Layout.Section>
           <Banner tone="info">
             <p>
-              <strong>Admin View:</strong> This page shows all shops that have installed the Cloudship app. 
+              <strong>Admin View:</strong> This page shows all shops that have installed the Cloudship app.
               Use this to monitor customer installations and track usage.
             </p>
           </Banner>
