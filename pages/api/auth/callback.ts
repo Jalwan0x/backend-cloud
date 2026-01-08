@@ -35,11 +35,13 @@ export default async function handler(
     // --- CRITICAL: PERSIST SHOP TO DB ---
     // User requested explicit inline logic to fix "0 shops" issue.
     // relying on storeShopSession was suspicious, so we do it here.
-    console.log(`[OAuth Callback] Persisting shop to database: ${session.shop}`);
+    console.log(`[OAuth Callback] Persisting shop to database. Raw Domain: '${session.shop}'`);
 
     try {
       const encryptedToken = encrypt(session.accessToken || '');
       const shopifyId = session.shop.replace('.myshopify.com', '');
+
+      console.log(`[OAuth Callback] Upserting with shopDomain: '${session.shop}'`);
 
       const result = await prisma.shop.upsert({
         where: { shopDomain: session.shop },
@@ -58,6 +60,8 @@ export default async function handler(
         },
       });
 
+      console.log(`[OAuth Callback] SUCCESS: Shop saved. ID: ${result.id}`);
+      console.log(`[OAuth Callback] Saved Domain: '${result.shopDomain}'`);
       console.log('SHOP SAVED TO DB - ID:', result.id);
 
     } catch (dbError: any) {
