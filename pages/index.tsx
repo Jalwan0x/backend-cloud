@@ -38,7 +38,9 @@ export default function Home() {
         .then((res) => {
           if (res.status === 401 || res.status === 404) {
             console.log('[Home] Shop not authenticated/found. Initiating OAuth...');
-            const authUrl = `/api/auth/begin?shop=${encodeURIComponent(shop)}`;
+            // FIX: Use absolute URL for redirect to ensure it hits our backend, not Shopify Admin
+            const appOrigin = 'https://backend-cloud-jzom.onrender.com';
+            const authUrl = `${appOrigin}/api/auth/begin?shop=${encodeURIComponent(shop)}`;
 
             // 3. HANDLE EMBEDDED OAUTH (Firefox Fix)
             // If we have a 'host' param, we assume we are embedded.
