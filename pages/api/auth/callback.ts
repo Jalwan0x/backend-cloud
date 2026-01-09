@@ -3,73 +3,89 @@ import { shopify } from '@/lib/shopify';
 import { prisma } from '@/lib/db';
 import { registerWebhooks } from '@/lib/webhook-registration';
 import { registerCarrierService } from '@/lib/carrier-service-registration';
-// 2. Validate HMAC (Security)
-// Use library util to handle sorting/encoding correctly
-const isValidHmac = await shopify.utils.validateHmac(req.query as any);
 
-if (!isValidHmac) {
-  console.error('[Manual OAuth] HMAC Validation Failed (Library Check)');
-  return res.status(400).send('HMAC validation failed');
-}
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
+  try {
+    console.log("🔥 MANUAL OAUTH CALLBACK HIT");
 
-console.log('[Manual OAuth] HMAC Verified by Library. Exchanging code for token...');
+    // 1. Extract Query Params
+    const { shop, code, hmac } = req.query as { [key: string]: string };
 
-// 3. Exchange Code for Access Token
-const accessTokenResponse = await fetch(`https://${shop}/admin/oauth/access_token`, {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify({
-    client_id: process.env.SHOPIFY_API_KEY,
-    client_secret: process.env.SHOPIFY_API_SECRET,
-    code,
-  }),
-});
+    if (!shop || !code || !hmac) {
+      console.error('[Manual OAuth] Missing required parameters');
+      return res.status(400).send('Missing required parameters');
+    }
 
-if (!accessTokenResponse.ok) {
-  const errorText = await accessTokenResponse.text();
-  console.error('[Manual OAuth] Token exchange failed:', errorText);
-  return res.status(500).json({ error: 'Failed to exchange token', details: errorText });
-}
+    // 2. Validate HMAC (Security)
+    // Use library util to handle sorting/encoding correctly
+    const isValidHmac = await shopify.utils.validateHmac(req.query as any);
 
-const tokenData = await accessTokenResponse.json();
-const { access_token, scope } = tokenData;
+    if (!isValidHmac) {
+      console.error('[Manual OAuth] HMAC Validation Failed (Library Check)');
+      return res.status(400).send('HMAC validation failed');
+    }
 
-console.log('[Manual OAuth] Token Received');
+    console.log('[Manual OAuth] HMAC Verified by Library. Exchanging code for token...');
 
-// 4. MANDATORY FIX: UPSERT SHOP IMMEDIATELY
-const normalizedShop = shop.toLowerCase();
+    // 3. Exchange Code for Access Token
+    const accessTokenResponse = await fetch(`https://${shop}/admin/oauth/access_token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        client_id: process.env.SHOPIFY_API_KEY,
+        client_secret: process.env.SHOPIFY_API_SECRET,
+        code,
+      }),
+    });
 
-await prisma.shop.upsert({
-  where: { shopDomain: normalizedShop },
-  update: {
-    accessToken: access_token,
-    updatedAt: new Date(),
-  },
-  create: {
-    shopDomain: normalizedShop,
-    shopifyId: normalizedShop.replace('.myshopify.com', ''),
-    accessToken: access_token,
-    scopes: scope || '',
-    isActive: true,
-  },
-});
+    if (!accessTokenResponse.ok) {
+      const errorText = await accessTokenResponse.text();
+      console.error('[Manual OAuth] Token exchange failed:', errorText);
+      return res.status(500).json({ error: 'Failed to exchange token', details: errorText });
+    }
 
-console.log("✅ SHOP SAVED", normalizedShop);
-const count = await prisma.shop.count();
-console.log("🧪 SHOP COUNT", count);
+    const tokenData = await accessTokenResponse.json();
+    const { access_token, scope } = tokenData;
 
-// 5. Post-Process (Webhooks, etc.)
-registerWebhooks(normalizedShop).catch(e => console.error('Webhook registration failed:', e));
-registerCarrierService(normalizedShop).catch(e => console.error('CarrierService registration failed:', e));
+    console.log('[Manual OAuth] Token Received');
 
-// 6. Redirect to App
-const redirectUrl = `https://${normalizedShop}/admin/apps/${process.env.SHOPIFY_API_KEY}`;
-res.redirect(redirectUrl);
+    // 4. MANDATORY FIX: UPSERT SHOP IMMEDIATELY
+    const normalizedShop = shop.toLowerCase();
+
+    await prisma.shop.upsert({
+      where: { shopDomain: normalizedShop },
+      update: {
+        accessToken: access_token,
+        updatedAt: new Date(),
+      },
+      create: {
+        shopDomain: normalizedShop,
+        shopifyId: normalizedShop.replace('.myshopify.com', ''),
+        accessToken: access_token,
+        scopes: scope || '',
+        isActive: true,
+      },
+    });
+
+    console.log("✅ SHOP SAVED", normalizedShop);
+    const count = await prisma.shop.count();
+    console.log("🧪 SHOP COUNT", count);
+
+    // 5. Post-Process (Webhooks, etc.)
+    registerWebhooks(normalizedShop).catch(e => console.error('Webhook registration failed:', e));
+    registerCarrierService(normalizedShop).catch(e => console.error('CarrierService registration failed:', e));
+
+    // 6. Redirect to App
+    const redirectUrl = `https://${normalizedShop}/admin/apps/${process.env.SHOPIFY_API_KEY}`;
+    res.redirect(redirectUrl);
 
   } catch (error: any) {
-  console.error('Manual OAuth callback error:', error);
-  res.status(500).json({ error: error.message || 'Authentication failed' });
-}
+    console.error('Manual OAuth callback error:', error);
+    res.status(500).json({ error: error.message || 'Authentication failed' });
+  }
 }
