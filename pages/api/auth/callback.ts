@@ -86,9 +86,15 @@ export default async function handler(
     registerWebhooks(normalizedShop).catch(e => console.error('Webhook registration failed:', e));
     registerCarrierService(normalizedShop).catch(e => console.error('CarrierService registration failed:', e));
 
-    // 6. Redirect to App
-    const redirectUrl = `https://${normalizedShop}/admin/apps/${process.env.SHOPIFY_API_KEY}`;
+    // 6. Redirect to App (MANDATORY FIX)
+    const cleanShop = normalizedShop.replace(".myshopify.com", "");
+    const redirectUrl = `https://admin.shopify.com/store/${cleanShop}/apps/${process.env.SHOPIFY_API_KEY}`;
+
+    console.log("OAUTH CALLBACK SUCCESS");
+    console.log("REDIRECTING TO ADMIN APP", redirectUrl);
+
     res.redirect(redirectUrl);
+    // return; // Next.js API routes don't strictly need return after redirect if it's the last statement, but good practice implied.
 
   } catch (error: any) {
     console.error('Manual OAuth callback error:', error);
