@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/router';
 import {
   Page,
@@ -25,8 +25,12 @@ export default function Home() {
   const router = useRouter();
   const [shopInfo, setShopInfo] = useState<ShopInfo | null>(null);
   const [loading, setLoading] = useState(true);
+  const isRedirecting = useRef(false);
 
   useEffect(() => {
+    // Prevent double-invocation (Strict Mode or rapid updates)
+    if (isRedirecting.current) return;
+
     // 1. Get Params
     const query = new URLSearchParams(window.location.search);
     const shop = query.get('shop') || '';
@@ -37,6 +41,9 @@ export default function Home() {
       fetch(`/api/shop?shop=${encodeURIComponent(shop)}`)
         .then((res) => {
           if (res.status === 401 || res.status === 404) {
+            if (isRedirecting.current) return; // Double check
+            isRedirecting.current = true;
+
             console.log('[Home] Shop not authenticated/found. Initiating OAuth...');
             // FIX: Use absolute URL for redirect to ensure it hits our backend, not Shopify Admin
             const appOrigin = 'https://backend-cloud-jzom.onrender.com';
