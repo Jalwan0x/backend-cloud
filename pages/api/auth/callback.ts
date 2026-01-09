@@ -48,6 +48,25 @@ export default async function handler(
 
   } catch (error: any) {
     console.error('OAuth callback error:', error);
+
+    // DEBUG: Detailed logging to diagnose InvalidOAuthError
+    console.log('[Debug] Request Query:', JSON.stringify(req.query, null, 2));
+    console.log('[Debug] Request Headers (Sanitized):', JSON.stringify({
+      host: req.headers.host,
+      cookie: req.headers.cookie,
+      referer: req.headers.referer,
+      'user-agent': req.headers['user-agent']
+    }, null, 2));
+
+    // Explicitly check for cookie presence
+    const cookies = req.headers.cookie || '';
+    const hasShopifyState = cookies.includes('shopify_app_state');
+    console.log(`[Debug] shopify_app_state cookie present: ${hasShopifyState}`);
+
+    if (error.message && error.message.includes('Invalid OAuth callback')) {
+      console.error('[Debug] CRITICAL: State mismatch or cookie missing.');
+    }
+
     res.status(500).json({ error: error.message || 'Authentication failed' });
   }
 }
