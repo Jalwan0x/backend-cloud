@@ -32,16 +32,21 @@ export default async function handler(
     console.log('[Manual OAuth] HMAC Verified by Library. Exchanging code for token...');
 
     // 3. Exchange Code for Access Token
+    const params = new URLSearchParams();
+    params.append('client_id', process.env.SHOPIFY_API_KEY!);
+    params.append('client_secret', process.env.SHOPIFY_API_SECRET!);
+    params.append('code', code);
+
+    console.log('[Manual OAuth] Exchanging token with params:');
+    console.log(`- client_id: ${process.env.SHOPIFY_API_KEY?.substring(0, 6)}...`);
+    console.log(`- client_secret (masked): ${process.env.SHOPIFY_API_SECRET?.substring(0, 4)}...`);
+
     const accessTokenResponse = await fetch(`https://${shop}/admin/oauth/access_token`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: JSON.stringify({
-        client_id: process.env.SHOPIFY_API_KEY,
-        client_secret: process.env.SHOPIFY_API_SECRET,
-        code,
-      }),
+      body: params,
     });
 
     if (!accessTokenResponse.ok) {
