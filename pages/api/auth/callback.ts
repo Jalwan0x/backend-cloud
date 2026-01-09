@@ -1,72 +1,103 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { shopify } from '@/lib/shopify';
 import { prisma } from '@/lib/db';
 import { registerWebhooks } from '@/lib/webhook-registration';
 import { registerCarrierService } from '@/lib/carrier-service-registration';
+import crypto from 'crypto';
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
   try {
-    // 1. Trigger Shopify's OAuth Callback
-    const { session } = await shopify.auth.callback({
-      rawRequest: req,
-      rawResponse: res,
+    console.log("🔥 MANUAL OAUTH CALLBACK HIT");
+
+    // 1. Extract Query Params
+    const { shop, code, hmac, state } = req.query as { [key: string]: string };
+
+    if (!shop || !code || !hmac) {
+      console.error('[Manual OAuth] Missing required parameters');
+      return res.status(400).send('Missing required parameters');
+    }
+
+    // 2. Validate HMAC (Security)
+    // We do this manually to bypass shopify-api-js strict state/cookie checks
+    const map = Object.assign({}, req.query);
+    delete map['hmac'];
+    const message = Object.keys(map)
+      .sort((value1, value2) => value1.localeCompare(value2))
+      .map((key) => {
+        return `${key}=${map[key]}`;
+      })
+      .join('&');
+
+    const generatedHmac = crypto
+      .createHmac('sha256', process.env.SHOPIFY_API_SECRET!)
+      .update(message)
+      .digest('hex');
+
+    if (generatedHmac !== hmac) {
+      console.error('[Manual OAuth] HMAC Validation Failed');
+      return res.status(400).send('HMAC validation failed');
+    }
+
+    console.log('[Manual OAuth] HMAC Verified. Exchanging code for token...');
+
+    // 3. Exchange Code for Access Token
+    const accessTokenResponse = await fetch(`https://${shop}/admin/oauth/access_token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        client_id: process.env.SHOPIFY_API_KEY,
+        client_secret: process.env.SHOPIFY_API_SECRET,
+        code,
+      }),
     });
 
-    // 2. MANDATORY FIX: UPSERT SHOP IMMEDIATELY
-    const shop = session.shop.toLowerCase();
-    console.log("🔥 REAL OAUTH CALLBACK HIT", shop);
+    if (!accessTokenResponse.ok) {
+      const errorText = await accessTokenResponse.text();
+      console.error('[Manual OAuth] Token exchange failed:', errorText);
+      return res.status(500).json({ error: 'Failed to exchange token', details: errorText });
+    }
+
+    const tokenData = await accessTokenResponse.json();
+    const { access_token, scope } = tokenData;
+
+    console.log('[Manual OAuth] Token Received');
+
+    // 4. MANDATORY FIX: UPSERT SHOP IMMEDIATELY
+    const normalizedShop = shop.toLowerCase();
 
     await prisma.shop.upsert({
-      where: { shopDomain: shop }, // Using shopDomain as the unique key in schema
+      where: { shopDomain: normalizedShop },
       update: {
-        accessToken: session.accessToken,
+        accessToken: access_token,
         updatedAt: new Date(),
       },
       create: {
-        shopDomain: shop,
-        shopifyId: shop.replace('.myshopify.com', ''), // Required by schema
-        accessToken: session.accessToken || '',
-        scopes: session.scope || '',
+        shopDomain: normalizedShop,
+        shopifyId: normalizedShop.replace('.myshopify.com', ''),
+        accessToken: access_token,
+        scopes: scope || '',
         isActive: true,
       },
     });
 
-    console.log("✅ SHOP SAVED", shop);
+    console.log("✅ SHOP SAVED", normalizedShop);
     const count = await prisma.shop.count();
     console.log("🧪 SHOP COUNT", count);
 
-    // 3. Register webhooks & carrier service (non-blocking)
-    registerWebhooks(shop).catch(e => console.error('Webhook registration failed:', e));
-    registerCarrierService(shop).catch(e => console.error('CarrierService registration failed:', e));
+    // 5. Post-Process (Webhooks, etc.)
+    registerWebhooks(normalizedShop).catch(e => console.error('Webhook registration failed:', e));
+    registerCarrierService(normalizedShop).catch(e => console.error('CarrierService registration failed:', e));
 
-    // 4. Redirect to app
-    const redirectUrl = `https://${shop}/admin/apps/${process.env.SHOPIFY_API_KEY}`;
+    // 6. Redirect to App
+    const redirectUrl = `https://${normalizedShop}/admin/apps/${process.env.SHOPIFY_API_KEY}`;
     res.redirect(redirectUrl);
 
   } catch (error: any) {
-    console.error('OAuth callback error:', error);
-
-    // DEBUG: Detailed logging to diagnose InvalidOAuthError
-    console.log('[Debug] Request Query:', JSON.stringify(req.query, null, 2));
-    console.log('[Debug] Request Headers (Sanitized):', JSON.stringify({
-      host: req.headers.host,
-      cookie: req.headers.cookie,
-      referer: req.headers.referer,
-      'user-agent': req.headers['user-agent']
-    }, null, 2));
-
-    // Explicitly check for cookie presence
-    const cookies = req.headers.cookie || '';
-    const hasShopifyState = cookies.includes('shopify_app_state');
-    console.log(`[Debug] shopify_app_state cookie present: ${hasShopifyState}`);
-
-    if (error.message && error.message.includes('Invalid OAuth callback')) {
-      console.error('[Debug] CRITICAL: State mismatch or cookie missing.');
-    }
-
+    console.error('Manual OAuth callback error:', error);
     res.status(500).json({ error: error.message || 'Authentication failed' });
   }
 }
