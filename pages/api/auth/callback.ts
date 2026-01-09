@@ -35,6 +35,12 @@ export default async function handler(
       .update(message)
       .digest('hex');
 
+    // DEBUG: HMAC Details
+    console.log('[Manual OAuth] Secret exists:', !!process.env.SHOPIFY_API_SECRET);
+    console.log('[Manual OAuth] Received HMAC:', hmac);
+    console.log('[Manual OAuth] Generated HMAC:', generatedHmac);
+    console.log('[Manual OAuth] Message signed:', message);
+
     if (generatedHmac !== hmac) {
       console.error('[Manual OAuth] HMAC Validation Failed');
       return res.status(400).send('HMAC validation failed');
