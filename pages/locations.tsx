@@ -4,9 +4,9 @@ import {
   Layout,
   Card,
   DataTable,
-  Button,
-  Modal,
-  TextField,
+  // Button,
+  // Modal,
+  // TextField,
   Badge,
   Banner,
   InlineStack,
@@ -15,9 +15,9 @@ import {
   Checkbox,
   Divider,
   EmptyState,
-  Icon,
+  // Icon,
   Box,
-  Grid,
+  // Grid,
 } from '@shopify/polaris';
 import { useRouter } from 'next/router';
 import { createApp } from '@shopify/app-bridge';
@@ -90,21 +90,21 @@ export default function LocationsPage() {
 
   const [locations, setLocations] = useState<Location[]>([]);
   const [settings, setSettings] = useState<LocationSetting[]>([]);
-  const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
-  const [modalActive, setModalActive] = useState(false);
-  const [loading, setLoading] = useState(false);
+  // const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
+  // const [modalActive, setModalActive] = useState(false);
+  // const [loading, setLoading] = useState(false);
   const [shopSettings, setShopSettings] = useState({
     showBreakdown: true,
     sumRates: true,
     enableSplitShipping: false,
     isPlus: false,
   });
-  const [formData, setFormData] = useState({
-    shippingCost: '0',
-    etaMin: '1',
-    etaMax: '2',
-    priority: '0',
-  });
+  // const [formData, setFormData] = useState({
+  //   shippingCost: '0',
+  //   etaMin: '1',
+  //   etaMax: '2',
+  //   priority: '0',
+  // });
   const [debugInfo, setDebugInfo] = useState<{ scopes?: string } | null>(null);
 
   const fetchLocations = useCallback(async () => {
@@ -241,101 +241,17 @@ export default function LocationsPage() {
     fetchShopSettings();
   }, [fetchLocations, fetchSettings, fetchShopSettings]);
 
-  const handleLocationClick = (location: Location) => {
-    const existingSetting = settings.find((s) => s.shopifyLocationId === location.id);
-
-    if (existingSetting) {
-      setFormData({
-        shippingCost: existingSetting.shippingCost.toString(),
-        etaMin: existingSetting.etaMin.toString(),
-        etaMax: existingSetting.etaMax.toString(),
-        priority: existingSetting.priority.toString(),
-      });
-    } else {
-      setFormData({
-        shippingCost: '0',
-        etaMin: '1',
-        etaMax: '2',
-        priority: '0',
-      });
-    }
-
-    setSelectedLocation(location);
-    setModalActive(true);
-  };
-
-  const handleSave = async () => {
-    if (!selectedLocation || !shop) return;
-
-    setLoading(true);
-    const existingSetting = settings.find((s) => s.shopifyLocationId === selectedLocation.id);
-
-    // Normalize shop domain
-    let normalizedShop = shop.toLowerCase().trim();
-    if (!normalizedShop.includes('.myshopify.com')) {
-      normalizedShop = `${normalizedShop}.myshopify.com`;
-    }
-
-    try {
-      if (existingSetting) {
-        const res = await fetch(`/api/locations/settings?shop=${encodeURIComponent(normalizedShop)}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            id: existingSetting.id,
-            ...formData,
-          }),
-        });
-        if (res.ok) {
-          setModalActive(false);
-          fetchSettings();
-        }
-      } else {
-        const res = await fetch(`/api/locations/settings?shop=${encodeURIComponent(normalizedShop)}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            shopifyLocationId: selectedLocation.id,
-            locationName: selectedLocation.name,
-            ...formData,
-          }),
-        });
-        if (res.ok) {
-          setModalActive(false);
-          fetchSettings();
-        }
-      }
-    } catch (error) {
-      console.error('Failed to save setting:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const tableRows = locations.map((location) => {
-    const setting = settings.find((s) => s.shopifyLocationId === location.id);
-    const hasSetting = !!setting;
-
     return [
       location.name,
       location.address?.city || '-',
       location.address?.country || '-',
-      hasSetting ? (
-        <Badge key={setting.id} tone={setting.isActive ? 'success' : 'warning'}>
-          {`$${setting.shippingCost.toFixed(2)} (${setting.etaMin}-${setting.etaMax} days)`}
-        </Badge>
-      ) : (
-        <Badge key={`not-configured-${location.id}`}>Not configured</Badge>
-      ),
-      <Button key={`btn-${location.id}`} size="micro" onClick={() => handleLocationClick(location)}>
-        {hasSetting ? 'Edit' : 'Configure'}
-      </Button>,
     ];
   });
 
   return (
     <Page
-      title="Warehouse Shipping Settings"
+      title="Warehouse Locations"
       primaryAction={{
         content: 'Refresh',
         onAction: () => {
@@ -353,7 +269,7 @@ export default function LocationsPage() {
                 Welcome to Cloudship
               </Text>
               <Text variant="bodyMd" tone="subdued" as="p">
-                Configure shipping costs and delivery times for each warehouse location. Your customers will see transparent shipping information based on where their items are located.
+                Your warehouse locations are synced from Shopify. Split shipping options will apply automatically based on your plan settings below.
               </Text>
             </BlockStack>
           </Card>
@@ -423,22 +339,11 @@ export default function LocationsPage() {
                   image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
                 >
                   <p>No warehouse locations are available. Make sure you have locations configured in your Shopify store.</p>
-                  {debugInfo?.scopes && (
-                    <Box paddingBlockStart="400">
-                      <Banner tone="warning" title="Debug Information">
-                        <p><strong>Current Scopes:</strong> {debugInfo.scopes}</p>
-                        <p>Required: <code>read_locations</code></p>
-                        {!debugInfo.scopes.includes('read_locations') && (
-                          <p><strong>ACTION REQUIRED:</strong> You are missing permission to view locations. Please reinstall/update the app.</p>
-                        )}
-                      </Banner>
-                    </Box>
-                  )}
                 </EmptyState>
               ) : (
                 <DataTable
-                  columnContentTypes={['text', 'text', 'text', 'text', 'text']}
-                  headings={['Location Name', 'City', 'Country', 'Shipping Settings', 'Actions']}
+                  columnContentTypes={['text', 'text', 'text']}
+                  headings={['Location Name', 'City', 'Country']}
                   rows={tableRows}
                   increasedTableDensity
                 />
@@ -447,73 +352,6 @@ export default function LocationsPage() {
           </Card>
         </Layout.Section>
       </Layout>
-
-      <Modal
-        open={modalActive}
-        onClose={() => setModalActive(false)}
-        title={`Configure Shipping: ${selectedLocation?.name || ''}`}
-        primaryAction={{
-          content: 'Save Settings',
-          onAction: handleSave,
-          loading,
-        }}
-        secondaryActions={[
-          {
-            content: 'Cancel',
-            onAction: () => setModalActive(false),
-          },
-        ]}
-      >
-        <Modal.Section>
-          <BlockStack gap="500">
-            <Text variant="bodyMd" tone="subdued" as="p">
-              Configure shipping costs and delivery times for this warehouse location. These settings will be used when calculating shipping rates for items from this location.
-            </Text>
-            <Divider />
-            <BlockStack gap="400">
-              <TextField
-                label="Shipping Cost"
-                type="number"
-                value={formData.shippingCost}
-                onChange={(value) => setFormData({ ...formData, shippingCost: value })}
-                prefix="$"
-                autoComplete="off"
-                helpText="Base shipping cost for items from this warehouse"
-              />
-              <Grid>
-                <Grid.Cell columnSpan={{ xs: 6, sm: 6, md: 6, lg: 6, xl: 6 }}>
-                  <TextField
-                    label="Minimum Delivery Time"
-                    type="number"
-                    value={formData.etaMin}
-                    onChange={(value) => setFormData({ ...formData, etaMin: value })}
-                    autoComplete="off"
-                    helpText="Minimum days for delivery"
-                  />
-                </Grid.Cell>
-                <Grid.Cell columnSpan={{ xs: 6, sm: 6, md: 6, lg: 6, xl: 6 }}>
-                  <TextField
-                    label="Maximum Delivery Time"
-                    type="number"
-                    value={formData.etaMax}
-                    onChange={(value) => setFormData({ ...formData, etaMax: value })}
-                    autoComplete="off"
-                    helpText="Maximum days for delivery"
-                  />
-                </Grid.Cell>
-              </Grid>
-              <TextField
-                label="Priority"
-                type="number"
-                value={formData.priority}
-                onChange={(value) => setFormData({ ...formData, priority: value })}
-                autoComplete="off"
-                helpText="Lower numbers = higher priority. When items are available at multiple warehouses, this location will be preferred if it has a lower priority number."
-              />
-            </BlockStack>
-          </BlockStack>
-        </Modal.Section>
-      </Modal>
     </Page>
   );
 }
