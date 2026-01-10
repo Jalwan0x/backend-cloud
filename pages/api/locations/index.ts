@@ -31,14 +31,14 @@ export default async function handler(
 
     if (!shopRecord || !shopRecord.isActive) {
       console.error(`[Locations API] Shop not found or inactive: ${normalizedShop}`);
-      return res.status(401).json({ error: 'Shop not found or app uninstalled' });
+      return res.status(401).json({ error: 'Shop not found or app uninstalled', reauth: true });
     }
 
     console.log(`[Locations API] Getting session for: ${normalizedShop}`);
     const session = await getShopifySession(normalizedShop);
     if (!session) {
       console.error(`[Locations API] Session not found for: ${normalizedShop}`);
-      return res.status(401).json({ error: 'Shop not authenticated' });
+      return res.status(401).json({ error: 'Shop not authenticated', reauth: true });
     }
     console.log(`[Locations API] Session retrieved successfully for: ${normalizedShop}`);
 

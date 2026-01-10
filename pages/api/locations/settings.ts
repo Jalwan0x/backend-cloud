@@ -19,110 +19,110 @@ export default async function handler(
     });
 
     if (!shopRecord || !shopRecord.isActive) {
-      return res.status(401).json({ error: 'Shop not found or app uninstalled' });
+      return res.status(401).json({ error: 'Shop not found or app uninstalled', reauth: true });
     }
 
     const session = await getShopifySession(shop);
     if (!session) {
-      return res.status(401).json({ error: 'Shop not authenticated' });
+      return res.status(401).json({ error: 'Shop not authenticated', reauth: true });
     }
 
-  if (req.method === 'GET') {
-    try {
-      const settings = await prisma.locationSetting.findMany({
-        where: { shopId: shopRecord.id },
-        orderBy: { priority: 'asc' },
-      });
+    if (req.method === 'GET') {
+      try {
+        const settings = await prisma.locationSetting.findMany({
+          where: { shopId: shopRecord.id },
+          orderBy: { priority: 'asc' },
+        });
 
-      res.json({ settings });
-    } catch (error: any) {
-      console.error('Get location settings error:', error);
-      res.status(500).json({ error: error.message || 'Failed to fetch settings' });
-    }
-  } else if (req.method === 'POST') {
-    try {
-      const { shopifyLocationId, locationName, shippingCost, etaMin, etaMax, priority } = req.body;
-
-      if (!shopifyLocationId || !locationName) {
-        return res.status(400).json({ error: 'shopifyLocationId and locationName are required' });
+        res.json({ settings });
+      } catch (error: any) {
+        console.error('Get location settings error:', error);
+        res.status(500).json({ error: error.message || 'Failed to fetch settings' });
       }
+    } else if (req.method === 'POST') {
+      try {
+        const { shopifyLocationId, locationName, shippingCost, etaMin, etaMax, priority } = req.body;
 
-      const setting = await prisma.locationSetting.upsert({
-        where: {
-          shopId_shopifyLocationId: {
+        if (!shopifyLocationId || !locationName) {
+          return res.status(400).json({ error: 'shopifyLocationId and locationName are required' });
+        }
+
+        const setting = await prisma.locationSetting.upsert({
+          where: {
+            shopId_shopifyLocationId: {
+              shopId: shopRecord.id,
+              shopifyLocationId,
+            },
+          },
+          update: {
+            locationName,
+            shippingCost: parseFloat(shippingCost) || 0,
+            etaMin: parseInt(etaMin) || 1,
+            etaMax: parseInt(etaMax) || 2,
+            priority: parseInt(priority) || 0,
+            isActive: true,
+          },
+          create: {
             shopId: shopRecord.id,
             shopifyLocationId,
+            locationName,
+            shippingCost: parseFloat(shippingCost) || 0,
+            etaMin: parseInt(etaMin) || 1,
+            etaMax: parseInt(etaMax) || 2,
+            priority: parseInt(priority) || 0,
+            isActive: true,
           },
-        },
-        update: {
-          locationName,
-          shippingCost: parseFloat(shippingCost) || 0,
-          etaMin: parseInt(etaMin) || 1,
-          etaMax: parseInt(etaMax) || 2,
-          priority: parseInt(priority) || 0,
-          isActive: true,
-        },
-        create: {
-          shopId: shopRecord.id,
-          shopifyLocationId,
-          locationName,
-          shippingCost: parseFloat(shippingCost) || 0,
-          etaMin: parseInt(etaMin) || 1,
-          etaMax: parseInt(etaMax) || 2,
-          priority: parseInt(priority) || 0,
-          isActive: true,
-        },
-      });
+        });
 
-      res.json({ setting });
-    } catch (error: any) {
-      console.error('Create/update location setting error:', error);
-      res.status(500).json({ error: error.message || 'Failed to save setting' });
-    }
-  } else if (req.method === 'PUT') {
-    try {
-      const { id, ...updateData } = req.body;
-
-      if (!id) {
-        return res.status(400).json({ error: 'id is required' });
+        res.json({ setting });
+      } catch (error: any) {
+        console.error('Create/update location setting error:', error);
+        res.status(500).json({ error: error.message || 'Failed to save setting' });
       }
+    } else if (req.method === 'PUT') {
+      try {
+        const { id, ...updateData } = req.body;
 
-      const setting = await prisma.locationSetting.update({
-        where: { id },
-        data: {
-          ...(updateData.shippingCost !== undefined && { shippingCost: parseFloat(updateData.shippingCost) }),
-          ...(updateData.etaMin !== undefined && { etaMin: parseInt(updateData.etaMin) }),
-          ...(updateData.etaMax !== undefined && { etaMax: parseInt(updateData.etaMax) }),
-          ...(updateData.priority !== undefined && { priority: parseInt(updateData.priority) }),
-          ...(updateData.isActive !== undefined && { isActive: updateData.isActive }),
-        },
-      });
+        if (!id) {
+          return res.status(400).json({ error: 'id is required' });
+        }
 
-      res.json({ setting });
-    } catch (error: any) {
-      console.error('Update location setting error:', error);
-      res.status(500).json({ error: error.message || 'Failed to update setting' });
-    }
-  } else if (req.method === 'DELETE') {
-    try {
-      const { id } = req.query;
+        const setting = await prisma.locationSetting.update({
+          where: { id },
+          data: {
+            ...(updateData.shippingCost !== undefined && { shippingCost: parseFloat(updateData.shippingCost) }),
+            ...(updateData.etaMin !== undefined && { etaMin: parseInt(updateData.etaMin) }),
+            ...(updateData.etaMax !== undefined && { etaMax: parseInt(updateData.etaMax) }),
+            ...(updateData.priority !== undefined && { priority: parseInt(updateData.priority) }),
+            ...(updateData.isActive !== undefined && { isActive: updateData.isActive }),
+          },
+        });
 
-      if (!id || typeof id !== 'string') {
-        return res.status(400).json({ error: 'id is required' });
+        res.json({ setting });
+      } catch (error: any) {
+        console.error('Update location setting error:', error);
+        res.status(500).json({ error: error.message || 'Failed to update setting' });
       }
+    } else if (req.method === 'DELETE') {
+      try {
+        const { id } = req.query;
 
-      await prisma.locationSetting.delete({
-        where: { id },
-      });
+        if (!id || typeof id !== 'string') {
+          return res.status(400).json({ error: 'id is required' });
+        }
 
-      res.json({ success: true });
-    } catch (error: any) {
-      console.error('Delete location setting error:', error);
-      res.status(500).json({ error: error.message || 'Failed to delete setting' });
+        await prisma.locationSetting.delete({
+          where: { id },
+        });
+
+        res.json({ success: true });
+      } catch (error: any) {
+        console.error('Delete location setting error:', error);
+        res.status(500).json({ error: error.message || 'Failed to delete setting' });
+      }
+    } else {
+      res.status(405).json({ error: 'Method not allowed' });
     }
-  } else {
-    res.status(405).json({ error: 'Method not allowed' });
-  }
   } catch (error: any) {
     console.error('Location settings API error:', error);
     res.status(500).json({ error: error.message || 'Internal server error' });
