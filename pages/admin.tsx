@@ -55,6 +55,7 @@ export default function AdminPage() {
   const [shops, setShops] = useState<Shop[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [syncingId, setSyncingId] = useState<string | null>(null);
 
   // Initial fetch on mount (authorized is guaranteed by SSR)
   useEffect(() => {
@@ -131,6 +132,28 @@ export default function AdminPage() {
     }
   };
 
+  const handleSync = async (id: string, shopDomain: string) => {
+    setSyncingId(id);
+    try {
+      const res = await fetch(`/api/admin/shop/${id}/sync`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        await fetchShops();
+      } else {
+        alert(`Sync Failed for ${shopDomain}: ${data.error}`);
+      }
+    } catch (err: any) {
+      console.error('Sync failed:', err);
+      alert(`Sync error: ${err.message}`);
+    } finally {
+      setSyncingId(null);
+    }
+  };
+
   const handleExportEmails = async () => {
     try {
       const res = await fetch('/api/admin/export-emails');
@@ -173,14 +196,25 @@ export default function AdminPage() {
       <Badge>Standard</Badge>
     );
 
-    const deleteButton = (
-      <Button
-        tone="critical"
-        variant="plain"
-        onClick={() => handleDelete(shop.id, shop.shopDomain)}
-      >
-        Delete
-      </Button>
+    const actions = (
+      <InlineStack gap="200">
+        <Button
+          size="micro"
+          onClick={() => handleSync(shop.id, shop.shopDomain)}
+          disabled={!!syncingId}
+          loading={syncingId === shop.id}
+        >
+          Sync Data
+        </Button>
+        <Button
+          tone="critical"
+          variant="plain"
+          onClick={() => handleDelete(shop.id, shop.shopDomain)}
+          disabled={!!syncingId}
+        >
+          Delete
+        </Button>
+      </InlineStack>
     );
 
     return [
@@ -192,7 +226,7 @@ export default function AdminPage() {
       planBadge,
       shop.locationSettingsCount?.toString() || '0',
       new Date(shop.createdAt).toLocaleDateString(),
-      deleteButton
+      actions
     ];
   });
 
