@@ -21,6 +21,7 @@ import {
 } from '@shopify/polaris';
 import { useRouter } from 'next/router';
 import { useAppBridge } from '@shopify/app-bridge-react';
+import { Redirect } from '@shopify/app-bridge/actions';
 
 interface Location {
   id: string;
@@ -48,14 +49,15 @@ interface LocationSetting {
 
 export default function LocationsPage() {
   const router = useRouter();
+  const app = useAppBridge();
   const [shop, setShop] = useState<string>('');
-  
+
   // Extract shop from URL or host parameter
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       let shopDomain = params.get('shop') || '';
-      
+
       // If no shop in query, try to extract from host parameter (embedded app)
       if (!shopDomain) {
         const host = params.get('host');
@@ -74,7 +76,7 @@ export default function LocationsPage() {
           }
         }
       }
-      
+
       if (shopDomain) {
         setShop(shopDomain);
         console.log(`[Locations Page] Shop set to: ${shopDomain}`);
@@ -85,7 +87,7 @@ export default function LocationsPage() {
       }
     }
   }, []);
-  
+
   const [locations, setLocations] = useState<Location[]>([]);
   const [settings, setSettings] = useState<LocationSetting[]>([]);
   const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
@@ -109,30 +111,41 @@ export default function LocationsPage() {
       console.warn('[Locations Page] No shop parameter found');
       return;
     }
-    
+
     // Normalize shop domain
     let normalizedShop = shop.toLowerCase().trim();
     if (!normalizedShop.includes('.myshopify.com')) {
       normalizedShop = `${normalizedShop}.myshopify.com`;
     }
-    
+
     console.log(`[Locations Page] Fetching locations for shop: ${normalizedShop}`);
-    
+
     try {
       const res = await fetch(`/api/locations?shop=${encodeURIComponent(normalizedShop)}`);
       const data = await res.json();
       console.log(`[Locations Page] Response status: ${res.status}, data:`, data);
-      
+
       if (!res.ok) {
         console.error(`[Locations Page] API error (${res.status}): ${data.error || 'Unknown error'}`);
         // If 401, shop might not be authenticated - show error
         if (res.status === 401) {
           console.error(`[Locations Page] Shop not authenticated. Shop domain: ${normalizedShop}`);
+
+          if (data.reauth) {
+            console.log('[Locations Page] Triggering Re-Auth Redirect...');
+            const appOrigin = 'https://backend-cloud-jzom.onrender.com';
+            const authUrl = `${appOrigin}/api/auth/begin?shop=${encodeURIComponent(normalizedShop)}`;
+            const redirect = Redirect.create(app);
+            redirect.dispatch(Redirect.Action.REMOTE, authUrl);
+            return;
+          }
+
+
         }
         setLocations([]);
         return;
       }
-      
+
       if (data.locations && Array.isArray(data.locations)) {
         console.log(`[Locations Page] Setting ${data.locations.length} locations:`, data.locations);
         setLocations(data.locations);
@@ -161,13 +174,13 @@ export default function LocationsPage() {
 
   const fetchShopSettings = useCallback(async () => {
     if (!shop) return;
-    
+
     // Normalize shop domain
     let normalizedShop = shop.toLowerCase().trim();
     if (!normalizedShop.includes('.myshopify.com')) {
       normalizedShop = `${normalizedShop}.myshopify.com`;
     }
-    
+
     try {
       const res = await fetch(`/api/shop/settings?shop=${encodeURIComponent(normalizedShop)}`);
       const data = await res.json();
@@ -209,7 +222,7 @@ export default function LocationsPage() {
 
   const handleLocationClick = (location: Location) => {
     const existingSetting = settings.find((s) => s.shopifyLocationId === location.id);
-    
+
     if (existingSetting) {
       setFormData({
         shippingCost: existingSetting.shippingCost.toString(),
@@ -225,7 +238,7 @@ export default function LocationsPage() {
         priority: '0',
       });
     }
-    
+
     setSelectedLocation(location);
     setModalActive(true);
   };
@@ -300,7 +313,7 @@ export default function LocationsPage() {
   });
 
   return (
-    <Page 
+    <Page
       title="Warehouse Shipping Settings"
       primaryAction={{
         content: 'Refresh',
@@ -359,8 +372,8 @@ export default function LocationsPage() {
                   <Box paddingBlockStart="400">
                     <Banner tone="info">
                       <p>
-                        <strong>Advanced/Plus Feature:</strong> Split shipping options are available for Advanced Shopify and Shopify Plus merchants. 
-                        CloudShip requires access to Shopify&apos;s Carrier Calculated Shipping API, which is automatically included with Advanced Shopify and Shopify Plus. 
+                        <strong>Advanced/Plus Feature:</strong> Split shipping options are available for Advanced Shopify and Shopify Plus merchants.
+                        CloudShip requires access to Shopify&apos;s Carrier Calculated Shipping API, which is automatically included with Advanced Shopify and Shopify Plus.
                         For Standard Shopify and Grow plans, you can enable it by either paying an extra $20/month or switching to annual billing.
                       </p>
                     </Banner>
