@@ -81,6 +81,7 @@ export default async function handler(
     const { access_token, scope } = tokenData;
 
     console.log('[Manual OAuth] Token Received');
+    console.log(`[Manual OAuth] Scopes Received: ${scope}`);
 
     // Encrypt token before storage
     const encryptedAccessToken = encrypt(access_token);

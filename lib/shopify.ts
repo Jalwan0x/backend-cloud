@@ -12,10 +12,18 @@ console.log(`[Shopify Config] API Key: ${process.env.SHOPIFY_API_KEY?.substring(
 console.log(`[Shopify Config] API Secret: ${process.env.SHOPIFY_API_SECRET ? 'SET' : 'NOT SET'}`);
 console.log(`[Shopify Config] App URL: ${process.env.SHOPIFY_APP_URL || 'NOT SET'}`);
 
+const envScopes = process.env.SCOPES || 'read_products,write_products,read_orders,write_orders,read_inventory,read_shipping,write_shipping,read_locations';
+const scopes = envScopes.split(',');
+if (!scopes.includes('read_locations')) {
+  scopes.push('read_locations');
+}
+
+console.log(`[Shopify Config] Effective Scopes: ${scopes.join(',')}`);
+
 export const shopify = shopifyApi({
   apiKey: process.env.SHOPIFY_API_KEY,
   apiSecretKey: process.env.SHOPIFY_API_SECRET,
-  scopes: (process.env.SCOPES || 'read_products,write_products,read_orders,write_orders,read_inventory,read_shipping,write_shipping,read_locations').split(','),
+  scopes: scopes,
   hostName: process.env.SHOPIFY_APP_URL?.replace(/https?:\/\//, '') || 'backend-cloud-jzom.onrender.com',
   apiVersion: LATEST_API_VERSION,
   isEmbeddedApp: true,
