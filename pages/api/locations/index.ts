@@ -50,93 +50,46 @@ export default async function handler(
 
     if (req.method === 'GET') {
       try {
-        const client = new shopify.clients.Graphql({ session });
-        // Support unlimited warehouses - Shopify allows up to 250 locations per query
-        const query = `
-        query {
-          locations(first: 250) {
-            edges {
-              node {
-                id
-                name
-                address {
-                  address1
-                  city
-                  province
-                  country
-                  zip
-                }
-                active
-              }
-            }
-          }
-        }
-      `;
+        console.log(`[Locations API] Fetching locations via REST for ${normalizedShop}`);
 
-        console.log(`[Locations API] Executing GraphQL query for ${normalizedShop}`);
-        console.log(`[Locations API] Session shop: ${session.shop}, Session ID: ${session.id}`);
-        console.log(`[Locations API] Access token exists: ${!!session.accessToken}`);
-
-        const response = await client.query({
-          data: { query },
+        // Use REST API (Proven working by Diagnostic)
+        // GraphQL was returning empty edges for some reason despite permissions.
+        const response = await fetch(`https://${normalizedShop}/admin/api/${LATEST_API_VERSION}/locations.json`, {
+          method: 'GET',
+          headers: {
+            'X-Shopify-Access-Token': session.accessToken || '',
+            'Content-Type': 'application/json',
+          },
         });
 
-        const data = response.body as any;
-        console.log(`[Locations API] GraphQL response received for ${normalizedShop}`);
-        console.log(`[Locations API] Full response:`, JSON.stringify(data, null, 2));
-
-        // Check for GraphQL errors
-        if (data.errors) {
-          console.error(`[Locations API] GraphQL errors for ${normalizedShop}:`, JSON.stringify(data.errors, null, 2));
-          return res.status(500).json({ error: 'GraphQL query failed', details: data.errors });
+        if (!response.ok) {
+          console.error(`[Locations API] REST Request Failed: ${response.status} ${response.statusText}`);
+          return res.status(response.status).json({ error: 'Failed to fetch locations from Shopify' });
         }
 
-        // Log response structure for debugging
-        if (!data.data) {
-          console.warn(`[Locations API] No data in response for ${normalizedShop}:`, JSON.stringify(data, null, 2));
-          return res.json({ locations: [] });
-        }
+        const data = await response.json() as any;
+        console.log(`[Locations API] REST Response: Found ${data.locations?.length || 0} locations`);
 
-        if (!data.data?.locations) {
-          console.error(`[Locations API] 'locations' field missing from response. Likely missing 'read_locations' scope. Response:`, JSON.stringify(data, null, 2));
-          return res.status(403).json({ error: 'Missing permissions: read_locations', details: 'The app lacks the required scope to fetch locations.' });
-        }
-
-        const edges = data.data.locations.edges || [];
-        console.log(`[Locations API] Found ${edges.length} location edges for ${normalizedShop}`);
-
-        if (edges.length === 0) {
-          console.warn(`[Locations API] No location edges found for ${normalizedShop}. Response:`, JSON.stringify(data.data.locations, null, 2));
-        }
-
-        const locations = edges.map((edge: any) => {
-          if (!edge?.node) {
-            console.warn(`[Locations API] Invalid edge structure:`, edge);
-            return null;
-          }
-          const locationId = edge.node.id?.replace('gid://shopify/Location/', '') || edge.node.id;
-          return {
-            id: locationId,
-            name: edge.node.name || 'Unnamed Location',
-            address: edge.node.address || {},
-            active: edge.node.active !== false, // Default to true if not specified
-          };
-        }).filter(Boolean); // Remove any null entries
-
-        console.log(`[Locations API] Parsed ${locations.length} locations for ${normalizedShop}:`, locations.map((l: { id: string; name: string }) => l.name));
+        const locations = (data.locations || []).map((loc: any) => ({
+          id: loc.id.toString(),
+          name: loc.name,
+          address: {
+            address1: loc.address1,
+            city: loc.city,
+            province: loc.province,
+            country: loc.country,
+            zip: loc.zip
+          },
+          active: loc.active
+        }));
 
         // LAZY SYNC: Upsert these into DB to ensure Admin Dashboard & Settings work
-        // This fixes the "0 locations" bug if the install hook missed them.
         try {
-          // Use Promise.all for speed? Or sequential to avoid connection spam? 
-          // 250 locations max, sequential might be slow. Promise.all with some concurrency is better, 
-          // but strictly, Promise.all is fine for reasonable counts.
-          // Note: shopRecord.id is available from earlier.
           await Promise.all(locations.map(async (loc: any) => {
             return prisma.locationSetting.upsert({
               where: {
                 shopId_shopifyLocationId: {
-                  shopId: shopRecord.id, // shopRecord from line 25
+                  shopId: shopRecord.id,
                   shopifyLocationId: loc.id
                 }
               },
@@ -160,10 +113,10 @@ export default async function handler(
           console.log(`[Locations API] Automatically synced ${locations.length} locations to DB.`);
         } catch (syncErr) {
           console.error('[Locations API] Lazy sync failed (non-critical):', syncErr);
-          // Don't fail the request, just log it. The user still gets their locations list.
         }
 
         res.json({ locations, debug: { scopes: session.scope } });
+
       } catch (error: any) {
         console.error('Get locations error:', error);
         res.status(500).json({ error: error.message || 'Failed to fetch locations' });
