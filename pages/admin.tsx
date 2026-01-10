@@ -197,7 +197,7 @@ export default function AdminPage() {
     );
 
     const actions = (
-      <InlineStack gap="200">
+      <InlineStack gap="400">
         <Button
           size="micro"
           onClick={() => handleSync(shop.id, shop.shopDomain)}
