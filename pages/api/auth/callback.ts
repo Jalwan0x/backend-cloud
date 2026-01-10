@@ -20,32 +20,38 @@ export default async function handler(
     }
 
     // 2. Validate HMAC (Security)
-    // Use library util to handle sorting/encoding correctly
     const isValidHmac = await shopify.utils.validateHmac(req.query as any);
-
     if (!isValidHmac) {
-      console.error('[Manual OAuth] HMAC Validation Failed (Library Check) - PROCEEDING FOR DEBUGGING');
-      // TEMPORARY: Proceed anyway to check if Token Exchange works (verifies API Secret)
-      // return res.status(400).send('HMAC validation failed');
+      console.error('[Manual OAuth] HMAC Validation Failed');
+      return res.status(400).send('HMAC validation failed');
     }
 
-    console.log('[Manual OAuth] HMAC Verified by Library. Exchanging code for token...');
+    const normalizedShop = shop.toLowerCase();
+    const cleanShop = normalizedShop.replace(".myshopify.com", "");
+    const redirectUrl = `https://admin.shopify.com/store/${cleanShop}/apps/${process.env.SHOPIFY_API_KEY}`;
 
-    // 3. Exchange Code for Access Token
+    // 3. IDEMPOTENCY CHECK: Check if we already have a valid token
+    // This prevents "Authorization Code Already Used" errors on refresh/retry
+    const existingShop = await prisma.shop.findUnique({
+      where: { shopDomain: normalizedShop },
+    });
+
+    if (existingShop && existingShop.accessToken && existingShop.isActive) {
+      console.log(`[Manual OAuth] Shop ${normalizedShop} already active. Skipping token exchange.`);
+      return res.redirect(redirectUrl);
+    }
+
+    console.log('[Manual OAuth] HMAC Verified. Exchanging code for token...');
+
+    // 4. Exchange Code for Access Token
     const params = new URLSearchParams();
     params.append('client_id', process.env.SHOPIFY_API_KEY!);
     params.append('client_secret', process.env.SHOPIFY_API_SECRET!);
     params.append('code', code);
 
-    console.log('[Manual OAuth] Exchanging token with params:');
-    console.log(`- client_id: ${process.env.SHOPIFY_API_KEY?.substring(0, 6)}...`);
-    console.log(`- client_secret (masked): ${process.env.SHOPIFY_API_SECRET?.substring(0, 4)}...`);
-
     const accessTokenResponse = await fetch(`https://${shop}/admin/oauth/access_token`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: params,
     });
 
@@ -60,13 +66,13 @@ export default async function handler(
 
     console.log('[Manual OAuth] Token Received');
 
-    // 4. MANDATORY FIX: UPSERT SHOP IMMEDIATELY
-    const normalizedShop = shop.toLowerCase();
-
+    // 5. UPSERT SHOP
     await prisma.shop.upsert({
       where: { shopDomain: normalizedShop },
       update: {
         accessToken: access_token,
+        scopes: scope || '',
+        isActive: true,
         updatedAt: new Date(),
       },
       create: {
@@ -79,22 +85,14 @@ export default async function handler(
     });
 
     console.log("✅ SHOP SAVED", normalizedShop);
-    const count = await prisma.shop.count();
-    console.log("🧪 SHOP COUNT", count);
 
-    // 5. Post-Process (Webhooks, etc.)
+    // 6. Post-Process (Webhooks, etc.)
+    // Run in background to not block redirect
     registerWebhooks(normalizedShop).catch(e => console.error('Webhook registration failed:', e));
     registerCarrierService(normalizedShop).catch(e => console.error('CarrierService registration failed:', e));
 
-    // 6. Redirect to App (MANDATORY FIX)
-    const cleanShop = normalizedShop.replace(".myshopify.com", "");
-    const redirectUrl = `https://admin.shopify.com/store/${cleanShop}/apps/${process.env.SHOPIFY_API_KEY}`;
-
-    console.log("OAUTH CALLBACK SUCCESS");
-    console.log("REDIRECTING TO ADMIN APP", redirectUrl);
-
-    res.redirect(redirectUrl);
-    // return; // Next.js API routes don't strictly need return after redirect if it's the last statement, but good practice implied.
+    console.log("OAUTH CALLBACK SUCCESS -> REDIRECTING");
+    return res.redirect(redirectUrl);
 
   } catch (error: any) {
     console.error('Manual OAuth callback error:', error);

@@ -12,6 +12,7 @@ import {
 // IMPORTING VANILLA App Bridge utilities (No hooks)
 // This avoids "Conditional Hook" errors since we only use these inside useEffect/callbacks
 import { createApp } from '@shopify/app-bridge';
+import { getSessionToken } from '@shopify/app-bridge/utilities';
 import { Redirect } from '@shopify/app-bridge/actions';
 
 interface ShopInfo {
@@ -27,71 +28,73 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const isRedirecting = useRef(false);
 
+
+
   useEffect(() => {
-    // Prevent double-invocation (Strict Mode or rapid updates)
+    // Prevent double-invocation
     if (isRedirecting.current) return;
 
-    // 1. Get Params
     const query = new URLSearchParams(window.location.search);
     const shop = query.get('shop') || '';
     const host = query.get('host') || '';
 
-    // 2. Check Auth Status
-    if (shop) {
-      fetch(`/api/shop?shop=${encodeURIComponent(shop)}`)
-        .then((res) => {
-          if (res.status === 401 || res.status === 404) {
-            if (isRedirecting.current) return; // Double check
+    // If no shop/host, we can't do anything (likely direct browser visit)
+    if (!shop || !host) {
+      setLoading(false);
+      return;
+    }
+
+    const initAuth = async () => {
+      try {
+        const apiKey = process.env.NEXT_PUBLIC_SHOPIFY_API_KEY || '';
+        const app = createApp({
+          apiKey,
+          host,
+          forceRedirect: true,
+        });
+
+        // 1. Get Session Token (JWT)
+        const token = await getSessionToken(app);
+
+        // 2. Validate Session with Backend
+        const res = await fetch(`/api/shop?shop=${encodeURIComponent(shop)}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (res.status === 401) {
+          const data = await res.json();
+          // ONLY redirect if backend explicitly requests re-auth
+          // This prevents loops where 401 might be transient
+          if (data.reauth) {
+            console.log('[Home] Session valid but Shop not active. Triggering OAuth.');
             isRedirecting.current = true;
 
-            console.log('[Home] Shop not authenticated/found. Initiating OAuth...');
-            // FIX: Use absolute URL for redirect to ensure it hits our backend, not Shopify Admin
             const appOrigin = 'https://backend-cloud-jzom.onrender.com';
             const authUrl = `${appOrigin}/api/auth/begin?shop=${encodeURIComponent(shop)}`;
 
-            // 3. HANDLE EMBEDDED OAUTH (Firefox Fix)
-            // If we have a 'host' param, we assume we are embedded.
-            if (host) {
-              console.log('[Home] Detected Embedded App (Host Present). Using App Bridge Remote Redirect.');
-              try {
-                // Initialize Vanilla App Bridge (Safe inside effect)
-                const apiKey = process.env.NEXT_PUBLIC_SHOPIFY_API_KEY || ''; // Ensure this is exposed
-                const app = createApp({
-                  apiKey: apiKey,
-                  host: host,
-                  forceRedirect: true,
-                });
+            const redirect = Redirect.create(app);
+            redirect.dispatch(Redirect.Action.REMOTE, authUrl);
+            return;
+          }
+        }
 
-                const redirect = Redirect.create(app);
-                redirect.dispatch(Redirect.Action.REMOTE, authUrl);
-              } catch (e) {
-                console.warn('[Home] Failed to init App Bridge for redirect. Fallback to window.', e);
-                window.location.href = authUrl;
-              }
-            } else {
-              // Fallback / Not Embedded
-              console.log('[Home] Not embedded (No Host). Using window.location.');
-              window.top!.location.href = authUrl;
-            }
-            return null; // Stop chain
-          }
-          return res.json();
-        })
-        .then((data) => {
-          if (data && data.shop) {
-            setShopInfo(data.shop);
-          }
-        })
-        .catch((err) => {
-          console.error('Failed to fetch shop info:', err);
-        })
-        .finally(() => {
-          setLoading(false);
-        });
-    } else {
-      setLoading(false);
-    }
-  }, []); // Run once on mount
+        if (res.ok) {
+          const data = await res.json();
+          if (data.shop) setShopInfo(data.shop);
+        }
+
+      } catch (e: any) {
+        console.error("Auth check failed:", e);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initAuth();
+  }, []); // Run once
+
 
   const handleGoToLocations = () => {
     const shop = typeof window !== 'undefined'
