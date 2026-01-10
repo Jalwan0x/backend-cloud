@@ -197,18 +197,19 @@ export default function AdminPage() {
     );
 
     const actions = (
-      <InlineStack gap="400">
+      <InlineStack gap="200" wrap={false}>
         <Button
           size="micro"
           onClick={() => handleSync(shop.id, shop.shopDomain)}
           disabled={!!syncingId}
           loading={syncingId === shop.id}
         >
-          Sync Data
+          Sync
         </Button>
         <Button
           tone="critical"
-          variant="plain"
+          variant="primary"
+          size="micro"
           onClick={() => handleDelete(shop.id, shop.shopDomain)}
           disabled={!!syncingId}
         >
