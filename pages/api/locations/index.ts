@@ -157,7 +157,7 @@ export default async function handler(
           // Don't fail the request, just log it. The user still gets their locations list.
         }
 
-        res.json({ locations });
+        res.json({ locations, debug: { scopes: session.scope } });
       } catch (error: any) {
         console.error('Get locations error:', error);
         res.status(500).json({ error: error.message || 'Failed to fetch locations' });

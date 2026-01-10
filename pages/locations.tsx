@@ -105,6 +105,7 @@ export default function LocationsPage() {
     etaMax: '2',
     priority: '0',
   });
+  const [debugInfo, setDebugInfo] = useState<{ scopes?: string } | null>(null);
 
   const fetchLocations = useCallback(async () => {
     if (!shop) {
@@ -169,6 +170,9 @@ export default function LocationsPage() {
       } else {
         console.warn(`[Locations Page] No locations in response or invalid format:`, data);
         setLocations([]);
+      }
+      if (data.debug) {
+        setDebugInfo(data.debug);
       }
     } catch (error: any) {
       console.error('[Locations Page] Failed to fetch locations:', error);
@@ -419,6 +423,17 @@ export default function LocationsPage() {
                   image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
                 >
                   <p>No warehouse locations are available. Make sure you have locations configured in your Shopify store.</p>
+                  {debugInfo?.scopes && (
+                    <Box paddingBlockStart="400">
+                      <Banner tone="warning" title="Debug Information">
+                        <p><strong>Current Scopes:</strong> {debugInfo.scopes}</p>
+                        <p>Required: <code>read_locations</code></p>
+                        {!debugInfo.scopes.includes('read_locations') && (
+                          <p><strong>ACTION REQUIRED:</strong> You are missing permission to view locations. Please reinstall/update the app.</p>
+                        )}
+                      </Banner>
+                    </Box>
+                  )}
                 </EmptyState>
               ) : (
                 <DataTable
