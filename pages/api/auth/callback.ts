@@ -11,7 +11,7 @@ export default async function handler(
   res: NextApiResponse
 ) {
   try {
-    console.log("🔥 MANUAL OAUTH CALLBACK HIT");
+
 
     // 1. Extract Query Params
     const { shop, code, hmac } = req.query as { [key: string]: string };
@@ -35,7 +35,7 @@ export default async function handler(
     // 3. ATTEMPT TOKEN EXCHANGE (Always try to get a fresh token first)
     // We only check for existing shop if exchange fails (e.g. Code Already Used)
 
-    console.log('[Manual OAuth] HMAC Verified. Exchanging code for token...');
+
 
     const params = new URLSearchParams();
     params.append('client_id', process.env.SHOPIFY_API_KEY!);
@@ -63,7 +63,7 @@ export default async function handler(
         });
 
         if (existingShop && existingShop.accessToken && existingShop.isActive) {
-          console.log(`[Manual OAuth] Exchange failed but Shop ${normalizedShop} is active. Treating as success (Idempotent).`);
+
           return res.redirect(redirectUrl);
         }
 
@@ -80,12 +80,12 @@ export default async function handler(
 
     const { access_token, scope } = tokenData;
 
-    console.log('[Manual OAuth] Token Received');
-    console.log(`[Manual OAuth] Scopes Received: ${scope}`);
+
+
 
     // Encrypt token before storage
     const encryptedAccessToken = encrypt(access_token);
-    console.log(`[Manual OAuth] Encrypted Token Length: ${encryptedAccessToken.length}, Preview: ${encryptedAccessToken.substring(0, 20)}...`);
+
 
     // 5. UPSERT SHOP
     await prisma.shop.upsert({
@@ -94,7 +94,6 @@ export default async function handler(
         accessToken: encryptedAccessToken,
         scopes: scope || '',
         isActive: true,
-        needsReauth: false,
         updatedAt: new Date(),
       },
       create: {
@@ -106,7 +105,7 @@ export default async function handler(
       },
     });
 
-    console.log("✅ SHOP SAVED", normalizedShop);
+
 
     // 6. Post-Process (Webhooks, etc.)
     // Run in background to not block redirect
@@ -121,7 +120,7 @@ export default async function handler(
       console.error('Owner details fetch failed:', e);
     }
 
-    console.log("OAUTH CALLBACK SUCCESS -> REDIRECTING");
+
     return res.redirect(redirectUrl);
 
   } catch (error: any) {

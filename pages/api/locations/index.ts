@@ -20,7 +20,7 @@ export default async function handler(
       normalizedShop = `${normalizedShop}.myshopify.com`;
     }
 
-    console.log(`[Locations API] Looking for shop: ${normalizedShop}`);
+
 
     // Check if shop is active
     const shopRecord = await prisma.shop.findUnique({
@@ -28,20 +28,20 @@ export default async function handler(
       select: { isActive: true, id: true, shopDomain: true },
     });
 
-    console.log(`[Locations API] Shop record found:`, shopRecord ? { id: shopRecord.id, domain: shopRecord.shopDomain, active: shopRecord.isActive } : 'NOT FOUND');
+
 
     if (!shopRecord || !shopRecord.isActive) {
       console.error(`[Locations API] Shop not found or inactive: ${normalizedShop}`);
       return res.status(403).json({ error: 'App is uninstalled. Please reinstall.', uninstalled: true });
     }
 
-    console.log(`[Locations API] Getting session for: ${normalizedShop}`);
+
     const session = await getShopifySession(normalizedShop);
     if (!session) {
       console.error(`[Locations API] Session not found for: ${normalizedShop}`);
       return res.status(401).json({ error: 'Shop not authenticated', reauth: true });
     }
-    console.log(`[Locations API] Session retrieved successfully for: ${normalizedShop}`);
+
 
     // Force Re-Auth if scopes are missing (Healing Logic)
     if (!session.scope?.includes('read_locations')) {
@@ -51,7 +51,7 @@ export default async function handler(
 
     if (req.method === 'GET') {
       try {
-        console.log(`[Locations API] Fetching locations via REST for ${normalizedShop}`);
+
 
         // Use REST API (Proven working by Diagnostic)
         // GraphQL was returning empty edges for some reason despite permissions.
@@ -69,7 +69,7 @@ export default async function handler(
         }
 
         const data = await response.json() as any;
-        console.log(`[Locations API] REST Response: Found ${data.locations?.length || 0} locations`);
+
 
         const locations = (data.locations || []).map((loc: any) => ({
           id: loc.id.toString(),
@@ -111,7 +111,7 @@ export default async function handler(
               }
             });
           }));
-          console.log(`[Locations API] Automatically synced ${locations.length} locations to DB.`);
+
         } catch (syncErr) {
           console.error('[Locations API] Lazy sync failed (non-critical):', syncErr);
         }

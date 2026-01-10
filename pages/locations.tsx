@@ -69,7 +69,7 @@ export default function LocationsPage() {
             const match = decoded.match(/store\/([^\/]+)/);
             if (match && match[1]) {
               shopDomain = `${match[1]}.myshopify.com`;
-              console.log(`[Locations Page] Extracted shop from host: ${shopDomain}`);
+
             }
           } catch (e) {
             console.warn('[Locations Page] Could not decode host parameter:', e);
@@ -79,7 +79,7 @@ export default function LocationsPage() {
 
       if (shopDomain) {
         setShop(shopDomain);
-        console.log(`[Locations Page] Shop set to: ${shopDomain}`);
+
       } else {
         console.error('[Locations Page] No shop found in URL or host parameter');
         console.error('[Locations Page] URL:', window.location.href);
@@ -119,12 +119,12 @@ export default function LocationsPage() {
       normalizedShop = `${normalizedShop}.myshopify.com`;
     }
 
-    console.log(`[Locations Page] Fetching locations for shop: ${normalizedShop}`);
+
 
     try {
       const res = await fetch(`/api/locations?shop=${encodeURIComponent(normalizedShop)}`);
       const data = await res.json();
-      console.log(`[Locations Page] Response status: ${res.status}, data:`, data);
+
 
       if (!res.ok) {
         // Enforce Uninstall Block
@@ -139,7 +139,7 @@ export default function LocationsPage() {
           console.error(`[Locations Page] Shop not authenticated. Shop domain: ${normalizedShop}`);
 
           if (data.reauth) {
-            console.log('[Locations Page] Triggering Re-Auth Redirect...');
+
             const appOrigin = 'https://backend-cloud-jzom.onrender.com';
             const authUrl = `${appOrigin}/api/auth/begin?shop=${encodeURIComponent(normalizedShop)}`;
 
@@ -158,7 +158,7 @@ export default function LocationsPage() {
             }
 
             // Fallback: Force top-level navigation (Standard)
-            console.log('[Locations Page] Using window.top fallback for redirect');
+
             const target = window.top || window;
             target.location.href = authUrl;
             return;
@@ -169,7 +169,7 @@ export default function LocationsPage() {
       }
 
       if (data.locations && Array.isArray(data.locations)) {
-        console.log(`[Locations Page] Setting ${data.locations.length} locations:`, data.locations);
+
         setLocations(data.locations);
       } else {
         console.warn(`[Locations Page] No locations in response or invalid format:`, data);

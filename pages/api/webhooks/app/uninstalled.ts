@@ -35,12 +35,12 @@ export default async function handler(
       },
     });
 
-    console.log(`Shop ${shop} deactivated - app features disabled immediately`);
+
 
     // Try to unregister CarrierService (may fail if token is already revoked, that's OK)
     try {
       await unregisterCarrierService(shop);
-      console.log(`CarrierService unregistered for ${shop}`);
+
     } catch (error: any) {
       console.warn('Failed to unregister CarrierService during uninstall (token may be revoked):', error.message);
       // This is expected - access token is revoked on uninstall
@@ -64,14 +64,14 @@ export default async function handler(
           where: { shopId: shopRecord.id },
         });
 
-        console.log(`Deleted all settings and webhooks for ${shop}`);
+
       } catch (deleteError: any) {
         console.error(`Error deleting settings for ${shop}:`, deleteError.message);
         // Continue even if deletion fails - shop is already deactivated
       }
     }
 
-    console.log(`App uninstalled for ${shop} - all features disabled`);
+
 
     res.status(200).json({ success: true });
   } catch (error: any) {

@@ -35,14 +35,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         shopName: true,
         ownerName: true,
         ownerEmail: true,
-        needsReauth: true,
         createdAt: true,
         updatedAt: true,
         _count: { select: { locationSettings: true } }
       }
     });
 
-    console.log(`[Admin API] Fetched ${shops.length} shops`);
     return res.status(200).json({ shops, totalCount });
 
   } catch (error: any) {

@@ -24,11 +24,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         // 2. Fetch Shop to get Domain
         const shop = await prisma.shop.findUnique({
             where: { id },
-            select: { shopDomain: true, accessToken: true } // We don't decrypt here, helper does it if we don't pass raw
+            select: { shopDomain: true, accessToken: true, isActive: true } // We don't decrypt here, helper does it if we don't pass raw
         });
 
         if (!shop) {
             return res.status(404).json({ error: 'Shop not found' });
+        }
+
+        // Enforce Activity Check
+        if (!shop.isActive) {
+            return res.status(400).json({ error: 'Cannot sync inactive (uninstalled) shop.' });
         }
 
         // 3. Trigger Fetch
@@ -37,7 +42,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         // "if (!token) { db fetch ... decrypt }"
         // So we just pass the domain.
 
-        console.log(`[Admin Sync] Syncing data for ${shop.shopDomain}...`);
         const result = await fetchAndSaveShopDetails(shop.shopDomain);
 
         if (result.success) {
