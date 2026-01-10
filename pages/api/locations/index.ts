@@ -118,6 +118,45 @@ export default async function handler(
         }).filter(Boolean); // Remove any null entries
 
         console.log(`[Locations API] Parsed ${locations.length} locations for ${normalizedShop}:`, locations.map((l: { id: string; name: string }) => l.name));
+
+        // LAZY SYNC: Upsert these into DB to ensure Admin Dashboard & Settings work
+        // This fixes the "0 locations" bug if the install hook missed them.
+        try {
+          // Use Promise.all for speed? Or sequential to avoid connection spam? 
+          // 250 locations max, sequential might be slow. Promise.all with some concurrency is better, 
+          // but strictly, Promise.all is fine for reasonable counts.
+          // Note: shopRecord.id is available from earlier.
+          await Promise.all(locations.map(async (loc: any) => {
+            return prisma.locationSetting.upsert({
+              where: {
+                shopId_shopifyLocationId: {
+                  shopId: shopRecord.id, // shopRecord from line 25
+                  shopifyLocationId: loc.id
+                }
+              },
+              update: {
+                locationName: loc.name,
+                isActive: loc.active,
+                updatedAt: new Date(),
+              },
+              create: {
+                shopId: shopRecord.id,
+                shopifyLocationId: loc.id,
+                locationName: loc.name,
+                isActive: loc.active,
+                priority: 0,
+                etaMin: 1,
+                etaMax: 2,
+                shippingCost: 0
+              }
+            });
+          }));
+          console.log(`[Locations API] Automatically synced ${locations.length} locations to DB.`);
+        } catch (syncErr) {
+          console.error('[Locations API] Lazy sync failed (non-critical):', syncErr);
+          // Don't fail the request, just log it. The user still gets their locations list.
+        }
+
         res.json({ locations });
       } catch (error: any) {
         console.error('Get locations error:', error);
