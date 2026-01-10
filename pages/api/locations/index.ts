@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { LATEST_API_VERSION } from '@shopify/shopify-api';
 import { getShopifySession } from '@/lib/shopify';
 import { shopify } from '@/lib/shopify';
 import { prisma } from '@/lib/db';
