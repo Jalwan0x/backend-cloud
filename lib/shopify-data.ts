@@ -26,7 +26,7 @@ interface ShopifyShopResponse {
 export async function fetchAndSaveShopDetails(
     shopDomain: string,
     accessToken?: string
-): Promise<{ success: boolean; error?: string; locationCount?: number }> {
+): Promise<{ success: boolean; error?: string; locationCount?: number; locationError?: string }> {
     try {
         let token = accessToken;
 
