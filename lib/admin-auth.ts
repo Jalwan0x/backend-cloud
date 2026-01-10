@@ -121,5 +121,12 @@ export function verifyAuthCookie(cookies: Partial<{ [key: string]: string }>): b
  * 4. Clear Cookie Function (Logout)
  */
 export function clearAuthCookie(res: NextApiResponse) {
-  res.setHeader('Set-Cookie', `${COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
+  const isSecure = process.env.NODE_ENV === 'production';
+  const cookieValue = `${COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
+
+  if (isSecure) {
+    res.setHeader('Set-Cookie', `${cookieValue}; Secure`);
+  } else {
+    res.setHeader('Set-Cookie', cookieValue);
+  }
 }
