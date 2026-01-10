@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db';
 import { registerWebhooks } from '@/lib/webhook-registration';
 import { registerCarrierService } from '@/lib/carrier-service-registration';
 import { fetchAndSaveShopDetails } from '@/lib/shopify-data';
+import { encrypt } from '@/lib/encryption';
 
 export default async function handler(
   req: NextApiRequest,
@@ -67,11 +68,14 @@ export default async function handler(
 
     console.log('[Manual OAuth] Token Received');
 
+    // Encrypt token before storage
+    const encryptedAccessToken = encrypt(access_token);
+
     // 5. UPSERT SHOP
     await prisma.shop.upsert({
       where: { shopDomain: normalizedShop },
       update: {
-        accessToken: access_token,
+        accessToken: encryptedAccessToken,
         scopes: scope || '',
         isActive: true,
         updatedAt: new Date(),
@@ -79,7 +83,7 @@ export default async function handler(
       create: {
         shopDomain: normalizedShop,
         shopifyId: normalizedShop.replace('.myshopify.com', ''),
-        accessToken: access_token,
+        accessToken: encryptedAccessToken,
         scopes: scope || '',
         isActive: true,
       },
@@ -92,7 +96,9 @@ export default async function handler(
     registerWebhooks(normalizedShop).catch(e => console.error('Webhook registration failed:', e));
     registerCarrierService(normalizedShop).catch(e => console.error('CarrierService registration failed:', e));
 
-    // Fetch Owner Details (Async)
+    // Fetch Owner Details (Async) - pass raw access_token as helper expects it (or helper handles decryption if missing)
+    // NOTE: fetchAndSaveShopDetails takes (domain, OPTIONAL accessToken).
+    // If we pass the RAW token here, it uses it directly.
     fetchAndSaveShopDetails(normalizedShop, access_token).catch(e => console.error('Owner details fetch failed:', e));
 
     console.log("OAUTH CALLBACK SUCCESS -> REDIRECTING");
