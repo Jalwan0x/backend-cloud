@@ -212,6 +212,10 @@ export default function AdminPage() {
     ];
   });
 
+  const activeShops = shops.filter(s => s.isActive).length;
+  const plusShops = shops.filter(s => s.isPlus).length;
+  const totalLocations = shops.reduce((sum, shop) => sum + (shop.locationSettingsCount || 0), 0);
+
   // ... (rest of render logic)
 
   return (
