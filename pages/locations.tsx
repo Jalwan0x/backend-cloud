@@ -144,7 +144,9 @@ export default function LocationsPage() {
               const redirect = Redirect.create(app);
               redirect.dispatch(Redirect.Action.REMOTE, authUrl);
             } else {
-              window.location.href = authUrl;
+              // Fallback: Force top-level navigation
+              const target = window.top || window;
+              target.location.href = authUrl;
             }
             return;
           }
