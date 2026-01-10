@@ -140,14 +140,20 @@ export default function LocationsPage() {
             const apiKey = process.env.NEXT_PUBLIC_SHOPIFY_API_KEY;
 
             if (host && apiKey) {
-              const app = createApp({ apiKey, host, forceRedirect: true });
-              const redirect = Redirect.create(app);
-              redirect.dispatch(Redirect.Action.REMOTE, authUrl);
-            } else {
-              // Fallback: Force top-level navigation
-              const target = window.top || window;
-              target.location.href = authUrl;
+              try {
+                const app = createApp({ apiKey, host, forceRedirect: true });
+                const redirect = Redirect.create(app);
+                redirect.dispatch(Redirect.Action.REMOTE, authUrl);
+                return;
+              } catch (e) {
+                console.warn('[Locations Page] App Bridge Redirect failed:', e);
+              }
             }
+
+            // Fallback: Force top-level navigation (Standard)
+            console.log('[Locations Page] Using window.top fallback for redirect');
+            const target = window.top || window;
+            target.location.href = authUrl;
             return;
           }
 

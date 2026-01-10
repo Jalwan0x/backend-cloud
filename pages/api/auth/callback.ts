@@ -84,6 +84,7 @@ export default async function handler(
 
     // Encrypt token before storage
     const encryptedAccessToken = encrypt(access_token);
+    console.log(`[Manual OAuth] Encrypted Token Length: ${encryptedAccessToken.length}, Preview: ${encryptedAccessToken.substring(0, 20)}...`);
 
     // 5. UPSERT SHOP
     await prisma.shop.upsert({
