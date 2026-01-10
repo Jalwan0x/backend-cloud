@@ -38,9 +38,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         // So we just pass the domain.
 
         console.log(`[Admin Sync] Syncing data for ${shop.shopDomain}...`);
-        const success = await fetchAndSaveShopDetails(shop.shopDomain);
+        const result = await fetchAndSaveShopDetails(shop.shopDomain);
 
-        if (success) {
+        if (result.success) {
             // Fetch fresh data to return
             const updatedShop = await prisma.shop.findUnique({
                 where: { id },
@@ -48,7 +48,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             });
             return res.status(200).json({ success: true, shop: updatedShop });
         } else {
-            return res.status(500).json({ error: 'Sync failed (Check server logs or token status)' });
+            return res.status(500).json({ error: result.error || 'Sync failed' });
         }
 
     } catch (error: any) {

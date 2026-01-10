@@ -25,7 +25,7 @@ interface ShopifyShopResponse {
 export async function fetchAndSaveShopDetails(
     shopDomain: string,
     accessToken?: string
-): Promise<boolean> {
+): Promise<{ success: boolean; error?: string }> {
     try {
         let token = accessToken;
 
@@ -38,7 +38,7 @@ export async function fetchAndSaveShopDetails(
 
             if (shop?.needsReauth) {
                 console.log(`[Shop Details] Shop ${shopDomain} flagged for re-auth. Skipping fetch.`);
-                return false;
+                return { success: false, error: 'Shop is flagged for re-authentication (reinstall required)' };
             }
 
             if (shop?.accessToken) {
@@ -46,14 +46,14 @@ export async function fetchAndSaveShopDetails(
                     token = decrypt(shop.accessToken);
                 } catch (e) {
                     console.warn(`[Shop Details] Failed to decrypt token for ${shopDomain}. Skipping.`);
-                    token = undefined;
+                    return { success: false, error: 'Failed to decrypt access token' };
                 }
             }
         }
 
         if (!token) {
             console.warn(`[Shop Details] No token found for ${shopDomain}. Skipping detail fetch.`);
-            return false;
+            return { success: false, error: 'No access token found in database' };
         }
 
         // 2. Call Shopify Admin API
@@ -70,8 +70,7 @@ export async function fetchAndSaveShopDetails(
         if (!response.ok) {
             const errText = await response.text();
             console.error(`[Shop Details] Failed to fetch shop info: ${response.status} ${errText}`);
-            // If 401, token might be invalid/revoked. We just fail quietly here.
-            return false;
+            return { success: false, error: `Shopify API ${response.status}: ${errText}` };
         }
 
         const data = await response.json() as ShopifyShopResponse;
@@ -90,10 +89,10 @@ export async function fetchAndSaveShopDetails(
         });
 
         console.log(`[Shop Details] Successfully updated owner details: ${shopData.email}`);
-        return true;
+        return { success: true };
 
     } catch (error: any) {
         console.error(`[Shop Details] Unexpected error:`, error);
-        return false;
+        return { success: false, error: error.message || 'Unknown internal error' };
     }
 }
