@@ -112,10 +112,13 @@ export default async function handler(
     registerWebhooks(normalizedShop).catch(e => console.error('Webhook registration failed:', e));
     registerCarrierService(normalizedShop).catch(e => console.error('CarrierService registration failed:', e));
 
-    // Fetch Owner Details (Async) - pass raw access_token as helper expects it (or helper handles decryption if missing)
-    // NOTE: fetchAndSaveShopDetails takes (domain, OPTIONAL accessToken).
-    // If we pass the RAW token here, it uses it directly.
-    fetchAndSaveShopDetails(normalizedShop, access_token).catch(e => console.error('Owner details fetch failed:', e));
+    // Fetch Owner Details (Synchronous wait to ensure Vercel doesn't kill process)
+    // Critical for Admin Dashboard to show email immediately.
+    try {
+      await fetchAndSaveShopDetails(normalizedShop, access_token);
+    } catch (e) {
+      console.error('Owner details fetch failed:', e);
+    }
 
     console.log("OAUTH CALLBACK SUCCESS -> REDIRECTING");
     return res.redirect(redirectUrl);
