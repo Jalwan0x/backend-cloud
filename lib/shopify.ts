@@ -15,7 +15,7 @@ console.log(`[Shopify Config] App URL: ${process.env.SHOPIFY_APP_URL || 'NOT SET
 export const shopify = shopifyApi({
   apiKey: process.env.SHOPIFY_API_KEY,
   apiSecretKey: process.env.SHOPIFY_API_SECRET,
-  scopes: (process.env.SCOPES || 'read_products,write_products,read_orders,write_orders,read_inventory,read_shipping,write_shipping').split(','),
+  scopes: (process.env.SCOPES || 'read_products,write_products,read_orders,write_orders,read_inventory,read_shipping,write_shipping,read_locations').split(','),
   hostName: process.env.SHOPIFY_APP_URL?.replace(/https?:\/\//, '') || 'backend-cloud-jzom.onrender.com',
   apiVersion: LATEST_API_VERSION,
   isEmbeddedApp: true,
