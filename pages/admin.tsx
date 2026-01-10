@@ -132,9 +132,8 @@ export default function AdminPage() {
 
   const tableRows = shops.map((shop) => {
     const shopDisplayName = shop.shopName || shop.shopDomain.replace('.myshopify.com', '');
-    const ownerDisplay = shop.ownerName
-      ? `${shop.ownerName}${shop.ownerEmail ? ` (${shop.ownerEmail})` : ''}`
-      : shop.ownerEmail || 'Unknown';
+    const ownerName = shop.ownerName || '-';
+    const ownerEmail = shop.ownerEmail || 'Unknown';
 
     const statusBadge = shop.needsReauth ? (
       <Badge tone="critical">Reinstall Required</Badge>
@@ -153,7 +152,8 @@ export default function AdminPage() {
     return [
       shopDisplayName,
       shop.shopDomain,
-      ownerDisplay,
+      ownerName,
+      ownerEmail,
       statusBadge,
       planBadge,
       shop.locationSettingsCount?.toString() || '0',
@@ -261,8 +261,8 @@ export default function AdminPage() {
                 </EmptyState>
               ) : (
                 <DataTable
-                  columnContentTypes={['text', 'text', 'text', 'text', 'text', 'numeric', 'text']}
-                  headings={['Shop Name', 'Domain', 'Owner', 'Status', 'Plan', 'Locations', 'Installed']}
+                  columnContentTypes={['text', 'text', 'text', 'text', 'text', 'text', 'numeric', 'text']}
+                  headings={['Shop Name', 'Domain', 'Owner Name', 'Email', 'Status', 'Plan', 'Locations', 'Installed']}
                   rows={tableRows}
                   footerContent={`Showing ${shops.length} shops`}
                   increasedTableDensity
