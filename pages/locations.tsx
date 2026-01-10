@@ -20,7 +20,7 @@ import {
   Grid,
 } from '@shopify/polaris';
 import { useRouter } from 'next/router';
-import { useAppBridge } from '@shopify/app-bridge-react';
+import { createApp } from '@shopify/app-bridge';
 import { Redirect } from '@shopify/app-bridge/actions';
 
 interface Location {
@@ -49,7 +49,7 @@ interface LocationSetting {
 
 export default function LocationsPage() {
   const router = useRouter();
-  const app = useAppBridge();
+
   const [shop, setShop] = useState<string>('');
 
   // Extract shop from URL or host parameter
@@ -135,8 +135,17 @@ export default function LocationsPage() {
             console.log('[Locations Page] Triggering Re-Auth Redirect...');
             const appOrigin = 'https://backend-cloud-jzom.onrender.com';
             const authUrl = `${appOrigin}/api/auth/begin?shop=${encodeURIComponent(normalizedShop)}`;
-            const redirect = Redirect.create(app);
-            redirect.dispatch(Redirect.Action.REMOTE, authUrl);
+
+            const host = new URLSearchParams(window.location.search).get('host');
+            const apiKey = process.env.NEXT_PUBLIC_SHOPIFY_API_KEY;
+
+            if (host && apiKey) {
+              const app = createApp({ apiKey, host, forceRedirect: true });
+              const redirect = Redirect.create(app);
+              redirect.dispatch(Redirect.Action.REMOTE, authUrl);
+            } else {
+              window.location.href = authUrl;
+            }
             return;
           }
 
