@@ -83,6 +83,6 @@ export default async function handler(
       }
     }
 
-    res.status(401).json({ error: 'Unauthorized', details: error.message });
+    res.status(401).json({ error: 'Unauthorized', details: error.message, reauth: true });
   }
 }
