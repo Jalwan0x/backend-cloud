@@ -90,10 +90,86 @@ export async function fetchAndSaveShopDetails(
         });
 
         console.log(`[Shop Details] Successfully updated owner details: ${shopData.email}`);
+
+        // 4. Sync Locations (Requested Feature)
+        console.log(`[Shop Details] Syncing locations for ${shopDomain}...`);
+        await syncLocations(shopDomain, token);
+
         return { success: true };
 
     } catch (error: any) {
         console.error(`[Shop Details] Unexpected error:`, error);
         return { success: false, error: error.message || 'Unknown internal error' };
+    }
+}
+
+interface ShopifyLocationResponse {
+    locations: {
+        id: number;
+        name: string;
+        active: boolean;
+        legacy: boolean;
+    }[];
+}
+
+/**
+ * Syncs Shopify Locations to local LocationSetting table.
+ * De-duplicates by shopifyLocationId.
+ */
+export async function syncLocations(shopDomain: string, accessToken: string): Promise<boolean> {
+    try {
+        const response = await fetch(`https://${shopDomain}/admin/api/${LATEST_API_VERSION}/locations.json`, {
+            method: 'GET',
+            headers: {
+                'X-Shopify-Access-Token': accessToken,
+                'Content-Type': 'application/json',
+            },
+        });
+
+        if (!response.ok) {
+            console.error(`[Location Sync] Failed: ${response.status} ${await response.text()}`);
+            return false;
+        }
+
+        const data = await response.json() as ShopifyLocationResponse;
+
+        // Get internal Shop ID
+        const shop = await prisma.shop.findUnique({ where: { shopDomain }, select: { id: true } });
+        if (!shop) return false;
+
+        console.log(`[Location Sync] Found ${data.locations.length} locations for ${shopDomain}`);
+
+        for (const loc of data.locations) {
+            // Skip legacy locations if needed, but usually we want all active physical locations
+            // Using upsert to update name/active status if changed
+            await prisma.locationSetting.upsert({
+                where: {
+                    shopId_shopifyLocationId: {
+                        shopId: shop.id,
+                        shopifyLocationId: loc.id.toString()
+                    }
+                },
+                update: {
+                    locationName: loc.name,
+                    isActive: loc.active,
+                    updatedAt: new Date(),
+                },
+                create: {
+                    shopId: shop.id,
+                    shopifyLocationId: loc.id.toString(),
+                    locationName: loc.name,
+                    isActive: loc.active,
+                    priority: 0,
+                    etaMin: 1,
+                    etaMax: 2,
+                    shippingCost: 0
+                }
+            });
+        }
+
+        return true;
+    } catch (e) {
+        console.error(`[Location Sync] Error syncing locations:`, e);
+        return false;
     }
 }
