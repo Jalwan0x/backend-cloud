@@ -7,17 +7,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const shop = req.query.shop as string;
     if (!shop) return res.status(400).json({ error: 'Missing shop param' });
 
+    let normalizedShop = shop.toLowerCase().trim();
+    if (!normalizedShop.includes('.myshopify.com')) {
+        normalizedShop = `${normalizedShop}.myshopify.com`;
+    }
+
     const response: any = {
         step: 'Diagnostic',
-        shop,
+        input_shop: shop,
+        normalized_shop: normalizedShop,
         timestamp: new Date().toISOString(),
     };
 
     try {
         // 1. Check DB
-        const dbShop = await prisma.shop.findUnique({ where: { shopDomain: shop } });
+        const dbShop = await prisma.shop.findUnique({ where: { shopDomain: normalizedShop } });
+
         if (!dbShop) {
-            return res.status(404).json({ ...response, error: 'Shop not found in DB' });
+            // Fallback: List available shops to detect mismatch
+            const allShops = await prisma.shop.findMany({ select: { shopDomain: true }, take: 10 });
+            return res.status(404).json({
+                ...response,
+                error: 'Shop not found in DB',
+                available_shops_in_db: allShops.map(s => s.shopDomain)
+            });
         }
         response.db_record = {
             id: dbShop.id,
