@@ -36,7 +36,12 @@ export async function fetchAndSaveShopDetails(
                 select: { accessToken: true }
             });
             if (shop?.accessToken) {
-                token = decrypt(shop.accessToken);
+                try {
+                    token = decrypt(shop.accessToken);
+                } catch (e) {
+                    console.warn(`[Shop Details] Failed to decrypt token for ${shopDomain}. Skipping.`);
+                    token = undefined;
+                }
             }
         }
 

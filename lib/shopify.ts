@@ -32,7 +32,13 @@ export async function getShopifySession(shopDomain: string): Promise<Session | n
     return null;
   }
 
-  const accessToken = decrypt(shop.accessToken);
+  let accessToken;
+  try {
+    accessToken = decrypt(shop.accessToken);
+  } catch (error) {
+    console.error(`[getShopifySession] Failed to decrypt token for shop ${shopDomain} (Invalid Format). Returning null to trigger re-auth.`);
+    return null;
+  }
 
   return new Session({
     id: `offline_${shop.shopDomain}`,
