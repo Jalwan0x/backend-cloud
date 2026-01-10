@@ -42,6 +42,12 @@ export default async function handler(
     }
     console.log(`[Locations API] Session retrieved successfully for: ${normalizedShop}`);
 
+    // Force Re-Auth if scopes are missing (Healing Logic)
+    if (!session.scope?.includes('read_locations')) {
+      console.warn(`[Locations API] Session exists but missing 'read_locations'. Force Re-Auth.`);
+      return res.status(401).json({ error: 'Missing permission: read_locations', reauth: true });
+    }
+
     if (req.method === 'GET') {
       try {
         const client = new shopify.clients.Graphql({ session });
