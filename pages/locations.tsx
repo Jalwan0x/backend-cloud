@@ -175,9 +175,6 @@ export default function LocationsPage() {
         console.warn(`[Locations Page] No locations in response or invalid format:`, data);
         setLocations([]);
       }
-      if (data.debug) {
-        setDebugInfo(data.debug);
-      }
     } catch (error: any) {
       console.error('[Locations Page] Failed to fetch locations:', error);
       setLocations([]);
