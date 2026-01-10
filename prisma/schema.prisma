@@ -21,6 +21,10 @@ model Shop {
   showBreakdown Boolean @default(true)
   sumRates     Boolean  @default(true)
   enableSplitShipping Boolean @default(false)
+  shopName       String?
+  ownerName      String?
+  ownerEmail     String?
+  ownerFetchedAt DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

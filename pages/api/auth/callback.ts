@@ -3,6 +3,7 @@ import { shopify } from '@/lib/shopify';
 import { prisma } from '@/lib/db';
 import { registerWebhooks } from '@/lib/webhook-registration';
 import { registerCarrierService } from '@/lib/carrier-service-registration';
+import { fetchAndSaveShopDetails } from '@/lib/shopify-data';
 
 export default async function handler(
   req: NextApiRequest,
@@ -90,6 +91,9 @@ export default async function handler(
     // Run in background to not block redirect
     registerWebhooks(normalizedShop).catch(e => console.error('Webhook registration failed:', e));
     registerCarrierService(normalizedShop).catch(e => console.error('CarrierService registration failed:', e));
+
+    // Fetch Owner Details (Async)
+    fetchAndSaveShopDetails(normalizedShop, access_token).catch(e => console.error('Owner details fetch failed:', e));
 
     console.log("OAUTH CALLBACK SUCCESS -> REDIRECTING");
     return res.redirect(redirectUrl);

@@ -32,6 +32,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         shopDomain: true,
         isActive: true,
         isPlus: true,
+        shopName: true,
+        ownerName: true,
+        ownerEmail: true,
         createdAt: true,
         updatedAt: true,
         _count: { select: { locationSettings: true } }

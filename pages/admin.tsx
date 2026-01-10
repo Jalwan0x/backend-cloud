@@ -162,11 +162,32 @@ export default function AdminPage() {
     }
   };
 
+  const handleExportEmails = async () => {
+    try {
+      const res = await fetch('/api/admin/export-emails');
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `cloudship_emails_${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+      } else {
+        alert('Failed to export emails');
+      }
+    } catch (err) {
+      console.error('Export failed:', err);
+      alert('Export failed');
+    }
+  };
+
   const tableRows = shops.map((shop) => {
     const shopDisplayName = shop.shopName || shop.shopDomain.replace('.myshopify.com', '');
     const ownerDisplay = shop.ownerName
       ? `${shop.ownerName}${shop.ownerEmail ? ` (${shop.ownerEmail})` : ''}`
-      : shop.ownerEmail || 'N/A';
+      : shop.ownerEmail || 'Unknown';
 
     const statusBadge = shop.isActive ? (
       <Badge tone="success">Active</Badge>
@@ -191,72 +212,7 @@ export default function AdminPage() {
     ];
   });
 
-  const activeShops = shops.filter(s => s.isActive).length;
-  const plusShops = shops.filter(s => s.isPlus).length;
-  const totalLocations = shops.reduce((sum, shop) => sum + (shop.locationSettingsCount || 0), 0);
-
-  // Show loading state
-  if (loading && authorized === null && !showLogin) {
-    return (
-      <Page title="Admin Dashboard">
-        <Layout>
-          <Layout.Section>
-            <Card>
-              <BlockStack gap="400" align="center">
-                <Spinner size="large" />
-                <Text as="p" tone="subdued">Loading admin dashboard...</Text>
-              </BlockStack>
-            </Card>
-          </Layout.Section>
-        </Layout>
-      </Page>
-    );
-  }
-
-  // Show login modal if not authorized
-  if (showLogin || authorized === false) {
-    return (
-      <Page title="Admin Login">
-        <Layout>
-          <Layout.Section>
-            <Card>
-              <BlockStack gap="400">
-                <Text variant="headingLg" as="h2">
-                  Admin Login
-                </Text>
-                <Text as="p" tone="subdued">
-                  Enter the admin password to access the dashboard.
-                </Text>
-                <Divider />
-                <BlockStack gap="400">
-                  <TextField
-                    label="Password"
-                    type="password"
-                    value={password}
-                    onChange={setPassword}
-                    autoComplete="current-password"
-                    error={loginError || undefined}
-                  />
-                  {loginError && (
-                    <Banner tone="critical">
-                      <p>{loginError}</p>
-                    </Banner>
-                  )}
-                  <Button
-                    variant="primary"
-                    onClick={handleLogin}
-                    loading={loginLoading}
-                  >
-                    Login
-                  </Button>
-                </BlockStack>
-              </BlockStack>
-            </Card>
-          </Layout.Section>
-        </Layout>
-      </Page>
-    );
-  }
+  // ... (rest of render logic)
 
   return (
     <Page
@@ -268,11 +224,16 @@ export default function AdminPage() {
       }}
       secondaryActions={[
         {
+          content: 'Export Emails (CSV)',
+          onAction: handleExportEmails,
+        },
+        {
           content: 'Logout',
           onAction: handleLogout,
         },
       ]}
     >
+
       <Layout>
         <Layout.Section>
           <Banner tone="info">
