@@ -254,11 +254,41 @@ export default function LocationsPage() {
     }
   };
 
+  const checkBilling = useCallback(async () => {
+    if (!shop) return;
+    try {
+      // 1. Check with backend
+      const res = await fetch(`/api/billing/check?shop=${encodeURIComponent(shop)}`);
+      const data = await res.json();
+
+      if (res.status === 402 && data.confirmationUrl) {
+        console.log('[Locations Page] Billing Check: Payment Required. Redirecting...');
+
+        // 2. Redirect to Shopify Billing using App Bridge
+        const appOrigin = 'https://backend-cloud-jzom.onrender.com'; // Dynamic?
+        const host = new URLSearchParams(window.location.search).get('host');
+        const apiKey = process.env.NEXT_PUBLIC_SHOPIFY_API_KEY;
+
+        if (host && apiKey) {
+          const app = createApp({ apiKey, host, forceRedirect: true });
+          const redirect = Redirect.create(app);
+          redirect.dispatch(Redirect.Action.REMOTE, data.confirmationUrl);
+        } else {
+          // Fallback
+          window.top!.location.href = data.confirmationUrl;
+        }
+      }
+    } catch (e) {
+      console.warn('Billing check failed:', e);
+    }
+  }, [shop]);
+
   useEffect(() => {
     fetchLocations();
     fetchSettings();
     fetchShopSettings();
-  }, [fetchLocations, fetchSettings, fetchShopSettings]);
+    checkBilling(); // <-- Add billing check
+  }, [fetchLocations, fetchSettings, fetchShopSettings, checkBilling]);
 
   const tableRows = locations.map((location) => {
     return [

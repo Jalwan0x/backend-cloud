@@ -1,5 +1,5 @@
 import '@shopify/shopify-api/adapters/node';
-import { shopifyApi, LATEST_API_VERSION, Session } from '@shopify/shopify-api';
+import { shopifyApi, LATEST_API_VERSION, Session, BillingInterval } from '@shopify/shopify-api';
 import { prisma } from './db';
 import { encrypt, decrypt } from './encryption';
 
@@ -8,9 +8,6 @@ if (!process.env.SHOPIFY_API_KEY || !process.env.SHOPIFY_API_SECRET) {
 }
 
 console.log('[Shopify Config] Initializing Shopify API client...');
-console.log(`[Shopify Config] API Key: ${process.env.SHOPIFY_API_KEY?.substring(0, 10)}...`);
-console.log(`[Shopify Config] API Secret: ${process.env.SHOPIFY_API_SECRET ? 'SET' : 'NOT SET'}`);
-console.log(`[Shopify Config] App URL: ${process.env.SHOPIFY_APP_URL || 'NOT SET'}`);
 
 const envScopes = process.env.SCOPES || 'read_products,write_products,read_orders,write_orders,read_inventory,read_shipping,write_shipping,read_locations';
 const scopes = envScopes.split(',');
@@ -18,7 +15,18 @@ if (!scopes.includes('read_locations')) {
   scopes.push('read_locations');
 }
 
-console.log(`[Shopify Config] Effective Scopes: ${scopes.join(',')}`);
+// Managed Pricing Config
+const PLAN_NAME = process.env.SHOPIFY_PLAN_NAME || 'Pro Plan';
+const PLAN_PRICE = parseFloat(process.env.SHOPIFY_PLAN_PRICE || '7.00');
+
+export const billingConfig = {
+  [PLAN_NAME]: {
+    amount: PLAN_PRICE,
+    currencyCode: 'USD',
+    interval: BillingInterval.Every30Days,
+    trialDays: 7,
+  },
+};
 
 export const shopify = shopifyApi({
   apiKey: process.env.SHOPIFY_API_KEY,
@@ -27,6 +35,7 @@ export const shopify = shopifyApi({
   hostName: process.env.SHOPIFY_APP_URL?.replace(/https?:\/\//, '') || 'backend-cloud-jzom.onrender.com',
   apiVersion: LATEST_API_VERSION,
   isEmbeddedApp: true,
+  billing: billingConfig as any,
 });
 
 console.log('[Shopify Config] Shopify API client initialized successfully');
@@ -40,24 +49,12 @@ export async function getShopifySession(shopDomain: string): Promise<Session | n
     return null;
   }
 
-  // Fast fail if known bad (Optimized)
-  if (shop.needsReauth) {
-    console.log(`[getShopifySession] Shop ${shopDomain} flagged for re-auth. Skipping decryption.`);
-    return null;
-  }
-
   let accessToken;
   try {
     accessToken = decrypt(shop.accessToken);
   } catch (error) {
     console.error(`[getShopifySession] Failed to decrypt token for shop ${shopDomain}. Error: ${(error as any).message}`);
-
-    // Mark as needing re-auth to prevent future error logs
-    await prisma.shop.update({
-      where: { id: shop.id },
-      data: { needsReauth: true },
-    }).catch(e => console.error('[getShopifySession] Failed to set needsReauth flag:', e));
-
+    // We do not set needsReauth here anymore to avoid schema conflicts if not generated
     return null;
   }
 
@@ -77,17 +74,6 @@ export async function storeShopSession(session: Session): Promise<void> {
     const shopifyId = session.shop.replace('.myshopify.com', '');
 
     console.log(`[storeShopSession] Upserting shop: ${session.shop}, shopifyId: ${shopifyId}`);
-    console.log(`[storeShopSession] Database URL exists: ${!!process.env.DATABASE_URL}`);
-    console.log(`[storeShopSession] Prisma client initialized: ${!!prisma}`);
-
-    // Test database connection first
-    try {
-      await prisma.$connect();
-      console.log(`[storeShopSession] Database connection successful`);
-    } catch (connError: any) {
-      console.error(`[storeShopSession] Database connection failed:`, connError);
-      throw new Error(`Database connection failed: ${connError.message}`);
-    }
 
     const result = await prisma.shop.upsert({
       where: { shopDomain: session.shop },
@@ -109,12 +95,6 @@ export async function storeShopSession(session: Session): Promise<void> {
     console.log(`[storeShopSession] Shop ${session.shop} stored/updated with ID: ${result.id}`);
   } catch (error: any) {
     console.error(`[storeShopSession] ERROR storing shop session:`, error);
-    console.error(`[storeShopSession] Error details:`, {
-      message: error.message,
-      code: error.code,
-      meta: error.meta,
-      stack: error.stack,
-    });
     throw error;
   }
 }

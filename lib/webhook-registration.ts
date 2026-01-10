@@ -5,9 +5,11 @@ import { prisma } from './db';
 const WEBHOOK_TOPICS = [
   'app/uninstalled',
   'shop/update',
+  'app_subscriptions/update',
 ];
 
 export async function registerWebhooks(shopDomain: string): Promise<void> {
+  // 1. Setup Session & Client
   const session = await getShopifySession(shopDomain);
   if (!session) {
     throw new Error('Shop session not found');
@@ -24,7 +26,7 @@ export async function registerWebhooks(shopDomain: string): Promise<void> {
     throw new Error('Shop record not found');
   }
 
-  // 1. Fetch ALL existing webhooks from Shopify to find stale ones
+  // 2. Fetch Existing Webhooks
   const existingWebhooksQuery = `
     query {
       webhookSubscriptions(first: 20) {
@@ -52,30 +54,32 @@ export async function registerWebhooks(shopDomain: string): Promise<void> {
     console.error('Failed to fetch existing webhooks:', error);
   }
 
-  // 2. Iterate through expected topics
+  // 3. Process Each Topic
   for (const topic of WEBHOOK_TOPICS) {
-    // Determine expected URL
     let expectedUrl = '';
     if (topic === 'app/uninstalled') {
       expectedUrl = `${appUrl}/api/webhooks/app/uninstalled`;
     } else if (topic === 'shop/update') {
       expectedUrl = `${appUrl}/api/webhooks/shop/update`;
+    } else if (topic === 'app_subscriptions/update') {
+      expectedUrl = `${appUrl}/api/webhooks/app/subscription_update`;
     }
 
     const topicEnum = topic.toUpperCase().replace(/\//g, '_');
 
-    // 3. Find matches and STALE webhooks for this topic
+    // Check for existing valid webhook
     const validExists = existingSubscriptions.some(
-      (sub) => sub.topic === topicEnum && sub.endpoint?.callbackUrl === expectedUrl
+      (sub: any) => sub.topic === topicEnum && sub.endpoint?.callbackUrl === expectedUrl
     );
 
+    // Find stale webhooks
     const staleWebhooks = existingSubscriptions.filter(
-      (sub) => sub.topic === topicEnum && sub.endpoint?.callbackUrl !== expectedUrl
+      (sub: any) => sub.topic === topicEnum && sub.endpoint?.callbackUrl !== expectedUrl
     );
 
-    // 4. Delete STALE webhooks
+    // DELETE Stale
     for (const stale of staleWebhooks) {
-      console.log(`Deleting stale webhook: ${stale.id} (${stale.endpoint?.callbackUrl})`);
+      console.log(`Deleting stale webhook: ${stale.id}`);
       const deleteMutation = `
         mutation webhookSubscriptionDelete($id: ID!) {
           webhookSubscriptionDelete(id: $id) {
@@ -94,19 +98,15 @@ export async function registerWebhooks(shopDomain: string): Promise<void> {
             variables: { id: stale.id },
           },
         });
-
-        // Also clean up from DB if it matches
-        await prisma.webhook.deleteMany({
-          where: { shopifyId: stale.id }
-        });
+        await prisma.webhook.deleteMany({ where: { shopifyId: stale.id } });
       } catch (err) {
         console.error(`Failed to delete stale webhook ${stale.id}:`, err);
       }
     }
 
-    // 5. Register if valid one is missing
+    // REGISTER New
     if (!validExists) {
-      console.log(`Registering webhook: ${topic} -> ${expectedUrl}`);
+      console.log(`Registering webhook: ${topic}`);
       try {
         const mutation = `
           mutation webhookSubscriptionCreate($topic: WebhookSubscriptionTopic!, $webhookSubscription: WebhookSubscriptionInput!) {
@@ -140,7 +140,6 @@ export async function registerWebhooks(shopDomain: string): Promise<void> {
         const webhook = data.data?.webhookSubscriptionCreate?.webhookSubscription;
 
         if (webhook && !data.data?.webhookSubscriptionCreate?.userErrors?.length) {
-          // Upsert to DB to keep it in sync
           const shopId_topic = { shopId: shopRecord.id, topic };
           const webhookData = {
             shopId: shopRecord.id,
@@ -155,13 +154,13 @@ export async function registerWebhooks(shopDomain: string): Promise<void> {
           });
           console.log(`Registered ${topic} webhook successfully.`);
         } else {
-          console.error(`Failed to register ${topic}:`, JSON.stringify(data.data?.webhookSubscriptionCreate?.userErrors));
+          console.error(`Error registering ${topic}:`, JSON.stringify(data.data?.webhookSubscriptionCreate?.userErrors));
         }
       } catch (error) {
         console.error(`Failed to register webhook ${topic}:`, error);
       }
     } else {
-      console.log(`Webhook ${topic} is already correctly registered.`);
+      console.log(`Webhook ${topic} is already registered.`);
     }
   }
 }
