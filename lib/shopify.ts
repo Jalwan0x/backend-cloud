@@ -42,7 +42,7 @@ export async function getShopifySession(shopDomain: string): Promise<Session | n
   try {
     accessToken = decrypt(shop.accessToken);
   } catch (error) {
-    console.error(`[getShopifySession] Failed to decrypt token for shop ${shopDomain} (Invalid Format). Marking for Re-auth.`);
+    console.error(`[getShopifySession] Failed to decrypt token for shop ${shopDomain}. Error: ${error.message}`);
 
     // Mark as needing re-auth to prevent future error logs
     await prisma.shop.update({
