@@ -107,6 +107,30 @@ export default function AdminPage() {
     }
   };
 
+  const handleDelete = async (id: string, shopDomain: string) => {
+    if (!window.confirm(`Are you sure you want to delete ${shopDomain}? This cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/admin/shop/${id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+
+      if (res.ok) {
+        // Refresh list
+        fetchShops();
+      } else {
+        const data = await res.json();
+        alert(`Failed to delete: ${data.error}`);
+      }
+    } catch (err: any) {
+      console.error('Delete failed:', err);
+      alert('Delete failed');
+    }
+  };
+
   const handleExportEmails = async () => {
     try {
       const res = await fetch('/api/admin/export-emails');
@@ -149,6 +173,16 @@ export default function AdminPage() {
       <Badge>Standard</Badge>
     );
 
+    const deleteButton = (
+      <Button
+        tone="critical"
+        variant="plain"
+        onClick={() => handleDelete(shop.id, shop.shopDomain)}
+      >
+        Delete
+      </Button>
+    );
+
     return [
       shopDisplayName,
       shop.shopDomain,
@@ -158,6 +192,7 @@ export default function AdminPage() {
       planBadge,
       shop.locationSettingsCount?.toString() || '0',
       new Date(shop.createdAt).toLocaleDateString(),
+      deleteButton
     ];
   });
 
@@ -261,8 +296,8 @@ export default function AdminPage() {
                 </EmptyState>
               ) : (
                 <DataTable
-                  columnContentTypes={['text', 'text', 'text', 'text', 'text', 'text', 'numeric', 'text']}
-                  headings={['Shop Name', 'Domain', 'Owner Name', 'Email', 'Status', 'Plan', 'Locations', 'Installed']}
+                  columnContentTypes={['text', 'text', 'text', 'text', 'text', 'text', 'numeric', 'text', 'text']}
+                  headings={['Shop Name', 'Domain', 'Owner Name', 'Email', 'Status', 'Plan', 'Locations', 'Installed', 'Actions']}
                   rows={tableRows}
                   footerContent={`Showing ${shops.length} shops`}
                   increasedTableDensity
