@@ -92,6 +92,7 @@ export default async function handler(
         accessToken: encryptedAccessToken,
         scopes: scope || '',
         isActive: true,
+        needsReauth: false,
         updatedAt: new Date(),
       },
       create: {

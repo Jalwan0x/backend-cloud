@@ -32,11 +32,24 @@ export async function getShopifySession(shopDomain: string): Promise<Session | n
     return null;
   }
 
+  // Fast fail if known bad (Optimized)
+  if (shop.needsReauth) {
+    console.log(`[getShopifySession] Shop ${shopDomain} flagged for re-auth. Skipping decryption.`);
+    return null;
+  }
+
   let accessToken;
   try {
     accessToken = decrypt(shop.accessToken);
   } catch (error) {
-    console.error(`[getShopifySession] Failed to decrypt token for shop ${shopDomain} (Invalid Format). Returning null to trigger re-auth.`);
+    console.error(`[getShopifySession] Failed to decrypt token for shop ${shopDomain} (Invalid Format). Marking for Re-auth.`);
+
+    // Mark as needing re-auth to prevent future error logs
+    await prisma.shop.update({
+      where: { id: shop.id },
+      data: { needsReauth: true },
+    }).catch(e => console.error('[getShopifySession] Failed to set needsReauth flag:', e));
+
     return null;
   }
 

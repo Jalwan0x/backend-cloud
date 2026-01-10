@@ -33,8 +33,14 @@ export async function fetchAndSaveShopDetails(
         if (!token) {
             const shop = await prisma.shop.findUnique({
                 where: { shopDomain },
-                select: { accessToken: true }
+                select: { accessToken: true, needsReauth: true }
             });
+
+            if (shop?.needsReauth) {
+                console.log(`[Shop Details] Shop ${shopDomain} flagged for re-auth. Skipping fetch.`);
+                return false;
+            }
+
             if (shop?.accessToken) {
                 try {
                     token = decrypt(shop.accessToken);

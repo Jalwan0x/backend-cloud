@@ -30,6 +30,7 @@ interface Shop {
   createdAt: string;
   updatedAt: string;
   locationSettingsCount?: number;
+  needsReauth?: boolean;
 }
 
 export default function AdminPage() {
@@ -189,10 +190,12 @@ export default function AdminPage() {
       ? `${shop.ownerName}${shop.ownerEmail ? ` (${shop.ownerEmail})` : ''}`
       : shop.ownerEmail || 'Unknown';
 
-    const statusBadge = shop.isActive ? (
+    const statusBadge = shop.needsReauth ? (
+      <Badge tone="critical">Reinstall Required</Badge>
+    ) : shop.isActive ? (
       <Badge tone="success">Active</Badge>
     ) : (
-      <Badge tone="critical">Inactive</Badge>
+      <Badge tone="attention">Inactive</Badge>
     );
 
     const planBadge = shop.isPlus ? (
