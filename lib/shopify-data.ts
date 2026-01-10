@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db';
 import { decrypt } from '@/lib/encryption';
+import { LATEST_API_VERSION } from '@shopify/shopify-api';
 
 interface ShopifyShopResponse {
     shop: {
@@ -59,7 +60,7 @@ export async function fetchAndSaveShopDetails(
         // 2. Call Shopify Admin API
         console.log(`[Shop Details] Fetching owner info from Shopify for ${shopDomain}...`);
 
-        const response = await fetch(`https://${shopDomain}/admin/api/latest/shop.json`, {
+        const response = await fetch(`https://${shopDomain}/admin/api/${LATEST_API_VERSION}/shop.json`, {
             method: 'GET',
             headers: {
                 'X-Shopify-Access-Token': token,
