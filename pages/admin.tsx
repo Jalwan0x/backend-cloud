@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
+import { GetServerSideProps } from 'next';
+import { verifyAuthCookie } from '@/lib/admin-auth';
 import {
   Page,
   Layout,
@@ -13,9 +15,6 @@ import {
   Banner,
   Divider,
   Button,
-  Spinner,
-  TextField,
-  Modal,
 } from '@shopify/polaris';
 
 interface Shop {
@@ -33,51 +32,34 @@ interface Shop {
   needsReauth?: boolean;
 }
 
+export const getServerSideProps: GetServerSideProps = async (context) => {
+  const { req } = context;
+  const isValid = verifyAuthCookie(req.cookies);
+
+  if (!isValid) {
+    return {
+      redirect: {
+        destination: '/admin/login',
+        permanent: false,
+      },
+    };
+  }
+
+  return {
+    props: {},
+  };
+};
+
 export default function AdminPage() {
   const router = useRouter();
   const [shops, setShops] = useState<Shop[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [authorized, setAuthorized] = useState<boolean | null>(null);
-  const [showLogin, setShowLogin] = useState(false);
-  const [password, setPassword] = useState('');
-  const [loginLoading, setLoginLoading] = useState(false);
-  const [loginError, setLoginError] = useState<string | null>(null);
 
+  // Initial fetch on mount (authorized is guaranteed by SSR)
   useEffect(() => {
-    checkAuth();
+    fetchShops();
   }, []);
-
-  const checkAuth = async () => {
-    try {
-      const res = await fetch('/api/admin/shops', {
-        credentials: 'include',
-      });
-      if (res.status === 401) {
-        setAuthorized(false);
-        setShowLogin(true);
-        setLoading(false);
-        return;
-      }
-      if (res.ok) {
-        const data = await res.json();
-        if (data.shops) {
-          setShops(data.shops);
-          setAuthorized(true);
-        }
-      } else {
-        setError('Failed to load shops');
-        setAuthorized(false);
-      }
-    } catch (err: any) {
-      console.error('Auth check failed:', err);
-      setError(err.message || 'Failed to check authentication');
-      setAuthorized(false);
-      setShowLogin(true);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const fetchShops = async () => {
     setLoading(true);
@@ -85,30 +67,25 @@ export default function AdminPage() {
     try {
       const res = await fetch('/api/admin/shops');
 
-      // 1. AUTH FAILED -> Redirect to Login
+      // 1. Client-Side Auth Failure (Session Expired)
       if (res.status === 401) {
-        setAuthorized(false);
-        setShowLogin(true);
+        window.location.href = '/admin/login';
         return;
       }
 
-      // 2. SERVER ERROR (DB issues) -> Show Error, DO NOT Redirect
+      // 2. Server Error
       if (res.status === 500) {
         const data = await res.json();
         setError(`Server Error: ${data.details || data.error || 'Unknown error'}`);
-        // Keep authorized=true (or null) so we don't flip to login screen
-        // We want the user to see the error message.
         return;
       }
 
-      // 3. SUCCESS
+      // 3. Success
       if (res.ok) {
         const data = await res.json();
         setShops(data.shops || []);
-        setAuthorized(true);
       } else {
-        // Other errors (404, etc)
-        setError('Failed to load shops (Unknown status)');
+        setError('Failed to load shops');
       }
 
     } catch (err: any) {
@@ -119,47 +96,14 @@ export default function AdminPage() {
     }
   };
 
-  const handleLogin = async () => {
-    setLoginLoading(true);
-    setLoginError(null);
-    try {
-      const res = await fetch('/api/admin/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ password }),
-        credentials: 'include',
-      });
-
-      const data = await res.json();
-
-      if (res.ok && data.success) {
-        setShowLogin(false);
-        setPassword('');
-        setAuthorized(true);
-        fetchShops();
-      } else {
-        setLoginError(data.error || 'Invalid password');
-      }
-    } catch (err: any) {
-      setLoginError(err.message || 'Login failed');
-    } finally {
-      setLoginLoading(false);
-    }
-  };
-
   const handleLogout = async () => {
     try {
-      await fetch('/api/admin/logout', {
-        method: 'POST',
-        credentials: 'include',
-      });
-      setAuthorized(false);
-      setShops([]);
-      setShowLogin(true);
+      await fetch('/api/admin/logout', { method: 'POST' });
+      // Force hard redirect to clear client state
+      window.location.href = '/admin/login';
     } catch (err) {
       console.error('Logout failed:', err);
+      window.location.href = '/admin/login';
     }
   };
 
@@ -183,6 +127,8 @@ export default function AdminPage() {
       alert('Export failed');
     }
   };
+
+  // --- Render Logic ---
 
   const tableRows = shops.map((shop) => {
     const shopDisplayName = shop.shopName || shop.shopDomain.replace('.myshopify.com', '');
@@ -219,8 +165,6 @@ export default function AdminPage() {
   const plusShops = shops.filter(s => s.isPlus).length;
   const totalLocations = shops.reduce((sum, shop) => sum + (shop.locationSettingsCount || 0), 0);
 
-  // ... (rest of render logic)
-
   return (
     <Page
       title="Admin Dashboard"
@@ -240,7 +184,6 @@ export default function AdminPage() {
         },
       ]}
     >
-
       <Layout>
         <Layout.Section>
           <Banner tone="info">
@@ -302,14 +245,13 @@ export default function AdminPage() {
               <Text variant="headingMd" as="h2">
                 All Shops
               </Text>
-              <Divider />
               {error && (
                 <Banner tone="critical">
                   <p>{error}</p>
                 </Banner>
               )}
               {loading ? (
-                <Text as="p">Loading shops...</Text>
+                <div style={{ padding: '2rem', textAlign: 'center' }}><Text as="p" tone="subdued">Loading shops...</Text></div>
               ) : shops.length === 0 ? (
                 <EmptyState
                   heading="No shops found"
@@ -320,16 +262,9 @@ export default function AdminPage() {
               ) : (
                 <DataTable
                   columnContentTypes={['text', 'text', 'text', 'text', 'text', 'numeric', 'text']}
-                  headings={[
-                    'Shop Name',
-                    'Domain',
-                    'Owner',
-                    'Status',
-                    'Plan',
-                    'Locations',
-                    'Installed',
-                  ]}
+                  headings={['Shop Name', 'Domain', 'Owner', 'Status', 'Plan', 'Locations', 'Installed']}
                   rows={tableRows}
+                  footerContent={`Showing ${shops.length} shops`}
                   increasedTableDensity
                 />
               )}
