@@ -32,38 +32,52 @@ export default async function handler(
     const cleanShop = normalizedShop.replace(".myshopify.com", "");
     const redirectUrl = `https://admin.shopify.com/store/${cleanShop}/apps/${process.env.SHOPIFY_API_KEY}`;
 
-    // 3. IDEMPOTENCY CHECK: Check if we already have a valid token
-    // This prevents "Authorization Code Already Used" errors on refresh/retry
-    const existingShop = await prisma.shop.findUnique({
-      where: { shopDomain: normalizedShop },
-    });
-
-    if (existingShop && existingShop.accessToken && existingShop.isActive) {
-      console.log(`[Manual OAuth] Shop ${normalizedShop} already active. Skipping token exchange.`);
-      return res.redirect(redirectUrl);
-    }
+    // 3. ATTEMPT TOKEN EXCHANGE (Always try to get a fresh token first)
+    // We only check for existing shop if exchange fails (e.g. Code Already Used)
 
     console.log('[Manual OAuth] HMAC Verified. Exchanging code for token...');
 
-    // 4. Exchange Code for Access Token
     const params = new URLSearchParams();
     params.append('client_id', process.env.SHOPIFY_API_KEY!);
     params.append('client_secret', process.env.SHOPIFY_API_SECRET!);
     params.append('code', code);
 
-    const accessTokenResponse = await fetch(`https://${shop}/admin/oauth/access_token`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: params,
-    });
+    let tokenData;
 
-    if (!accessTokenResponse.ok) {
-      const errorText = await accessTokenResponse.text();
-      console.error('[Manual OAuth] Token exchange failed:', errorText);
-      return res.status(500).json({ error: 'Failed to exchange token', details: errorText });
+    try {
+      const accessTokenResponse = await fetch(`https://${shop}/admin/oauth/access_token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: params,
+      });
+
+      if (!accessTokenResponse.ok) {
+        const errorText = await accessTokenResponse.text();
+        console.warn('[Manual OAuth] Token exchange failed:', errorText);
+
+        // 4. FALLBACK: IDEMPOTENCY CHECK
+        // If token exchange failed (probably "authorization code already used"), 
+        // check if we have a valid session anyway.
+        const existingShop = await prisma.shop.findUnique({
+          where: { shopDomain: normalizedShop },
+        });
+
+        if (existingShop && existingShop.accessToken && existingShop.isActive) {
+          console.log(`[Manual OAuth] Exchange failed but Shop ${normalizedShop} is active. Treating as success (Idempotent).`);
+          return res.redirect(redirectUrl);
+        }
+
+        // Real failure
+        return res.status(500).json({ error: 'Failed to exchange token', details: errorText });
+      }
+
+      tokenData = await accessTokenResponse.json();
+
+    } catch (networkError: any) {
+      console.error('[Manual OAuth] Network error during exchange:', networkError);
+      return res.status(500).json({ error: 'Network error during token exchange' });
     }
 
-    const tokenData = await accessTokenResponse.json();
     const { access_token, scope } = tokenData;
 
     console.log('[Manual OAuth] Token Received');
