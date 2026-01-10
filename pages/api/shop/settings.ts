@@ -24,6 +24,12 @@ export default async function handler(
     return res.status(404).json({ error: 'Shop not found' });
   }
 
+  // CRITICAL: Enforce App Uninstall Policy
+  if (!shopRecord.isActive) {
+    console.warn(`[Shop Settings] Blocked request for uninstalled shop: ${shop}`);
+    return res.status(403).json({ error: 'App is uninstalled. Please reinstall.', uninstalled: true });
+  }
+
   if (req.method === 'GET') {
     try {
       res.json({

@@ -105,7 +105,7 @@ export default function LocationsPage() {
   //   etaMax: '2',
   //   priority: '0',
   // });
-  const [debugInfo, setDebugInfo] = useState<{ scopes?: string } | null>(null);
+  const [isUninstalled, setIsUninstalled] = useState(false);
 
   const fetchLocations = useCallback(async () => {
     if (!shop) {
@@ -127,6 +127,12 @@ export default function LocationsPage() {
       console.log(`[Locations Page] Response status: ${res.status}, data:`, data);
 
       if (!res.ok) {
+        // Enforce Uninstall Block
+        if (res.status === 403 && data.uninstalled) {
+          setIsUninstalled(true);
+          return;
+        }
+
         console.error(`[Locations Page] API error (${res.status}): ${data.error || 'Unknown error'}`);
         // If 401, shop might not be authenticated - show error
         if (res.status === 401) {
@@ -157,8 +163,6 @@ export default function LocationsPage() {
             target.location.href = authUrl;
             return;
           }
-
-
         }
         setLocations([]);
         return;
@@ -185,6 +189,12 @@ export default function LocationsPage() {
     try {
       const res = await fetch(`/api/locations/settings?shop=${encodeURIComponent(shop)}`);
       const data = await res.json();
+
+      if (res.status === 403 && data.uninstalled) {
+        setIsUninstalled(true);
+        return;
+      }
+
       if (data.settings) {
         setSettings(data.settings);
       }
@@ -205,6 +215,12 @@ export default function LocationsPage() {
     try {
       const res = await fetch(`/api/shop/settings?shop=${encodeURIComponent(normalizedShop)}`);
       const data = await res.json();
+
+      if (res.status === 403 && data.uninstalled) {
+        setIsUninstalled(true);
+        return;
+      }
+
       if (data.shop) {
         setShopSettings({
           showBreakdown: data.shop.showBreakdown ?? true,
@@ -226,6 +242,12 @@ export default function LocationsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ [field]: value }),
       });
+
+      if (res.status === 403) {
+        setIsUninstalled(true);
+        return;
+      }
+
       if (res.ok) {
         const data = await res.json();
         setShopSettings((prev) => ({ ...prev, [field]: data[field] }));
@@ -248,6 +270,31 @@ export default function LocationsPage() {
       location.address?.country || '-',
     ];
   });
+
+  if (isUninstalled) {
+    return (
+      <Page title="Cloudship">
+        <Layout>
+          <Layout.Section>
+            <EmptyState
+              heading="App Uninstalled"
+              image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
+              action={{
+                content: 'Reinstall App',
+                onAction: () => {
+                  const appOrigin = 'https://backend-cloud-jzom.onrender.com';
+                  const authUrl = `${appOrigin}/api/auth/begin?shop=${encodeURIComponent(shop)}`;
+                  window.top!.location.href = authUrl;
+                }
+              }}
+            >
+              <p>This app has been uninstalled. Please reinstall it to continue using Cloudship features.</p>
+            </EmptyState>
+          </Layout.Section>
+        </Layout>
+      </Page>
+    );
+  }
 
   return (
     <Page

@@ -19,7 +19,8 @@ export default async function handler(
     });
 
     if (!shopRecord || !shopRecord.isActive) {
-      return res.status(401).json({ error: 'Shop not found or app uninstalled', reauth: true });
+      console.warn(`[Location Settings] Blocked request for uninstalled shop: ${shop}`);
+      return res.status(403).json({ error: 'App is uninstalled. Please reinstall.', uninstalled: true });
     }
 
     const session = await getShopifySession(shop);

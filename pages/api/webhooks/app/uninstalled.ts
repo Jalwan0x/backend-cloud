@@ -25,9 +25,14 @@ export default async function handler(
     }
 
     // CRITICAL: Deactivate shop FIRST to prevent any new requests from processing
+    // CRITICAL: Deactivate shop AND revoke token to prevent reuse
     await prisma.shop.update({
       where: { shopDomain: shop },
-      data: { isActive: false },
+      data: {
+        isActive: false,
+        accessToken: "REVOKED",
+        scopes: ""
+      },
     });
 
     console.log(`Shop ${shop} deactivated - app features disabled immediately`);

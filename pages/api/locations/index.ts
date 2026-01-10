@@ -32,7 +32,7 @@ export default async function handler(
 
     if (!shopRecord || !shopRecord.isActive) {
       console.error(`[Locations API] Shop not found or inactive: ${normalizedShop}`);
-      return res.status(401).json({ error: 'Shop not found or app uninstalled', reauth: true });
+      return res.status(403).json({ error: 'App is uninstalled. Please reinstall.', uninstalled: true });
     }
 
     console.log(`[Locations API] Getting session for: ${normalizedShop}`);
