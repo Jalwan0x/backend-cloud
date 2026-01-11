@@ -71,7 +71,7 @@ export default function Home() {
             console.log('[Home] Session valid but Shop not active. Triggering OAuth.');
             isRedirecting.current = true;
 
-            const appOrigin = 'https://backend-cloud-jzom.onrender.com';
+            const appOrigin = process.env.NEXT_PUBLIC_SHOPIFY_APP_URL || 'https://backend-cloud-jzom.onrender.com';
             const authUrl = `${appOrigin}/api/auth/begin?shop=${encodeURIComponent(shop)}`;
 
             const redirect = Redirect.create(app);

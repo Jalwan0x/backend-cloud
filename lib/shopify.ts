@@ -32,7 +32,7 @@ export const shopify = shopifyApi({
   apiKey: process.env.SHOPIFY_API_KEY,
   apiSecretKey: process.env.SHOPIFY_API_SECRET,
   scopes: scopes,
-  hostName: process.env.SHOPIFY_APP_URL?.replace(/https?:\/\//, '') || 'backend-cloud-jzom.onrender.com',
+  hostName: process.env.SHOPIFY_APP_URL?.replace(/https?:\/\//, '') || process.env.HOST?.replace(/https?:\/\//, '') || 'backend-cloud-jzom.onrender.com',
   apiVersion: LATEST_API_VERSION,
   isEmbeddedApp: true,
   billing: billingConfig as any,

@@ -140,7 +140,7 @@ export default function LocationsPage() {
 
           if (data.reauth) {
 
-            const appOrigin = 'https://backend-cloud-jzom.onrender.com';
+            const appOrigin = process.env.NEXT_PUBLIC_SHOPIFY_APP_URL || 'https://backend-cloud-jzom.onrender.com';
             const authUrl = `${appOrigin}/api/auth/begin?shop=${encodeURIComponent(normalizedShop)}`;
 
             const host = new URLSearchParams(window.location.search).get('host');
@@ -265,7 +265,7 @@ export default function LocationsPage() {
         console.log('[Locations Page] Billing Check: Payment Required. Redirecting...');
 
         // 2. Redirect to Shopify Billing using App Bridge
-        const appOrigin = 'https://backend-cloud-jzom.onrender.com'; // Dynamic?
+        const appOrigin = process.env.NEXT_PUBLIC_SHOPIFY_APP_URL || 'https://backend-cloud-jzom.onrender.com'; // Dynamic Fallback
         const host = new URLSearchParams(window.location.search).get('host');
         const apiKey = process.env.NEXT_PUBLIC_SHOPIFY_API_KEY;
 
@@ -309,7 +309,7 @@ export default function LocationsPage() {
               action={{
                 content: 'Reinstall App',
                 onAction: () => {
-                  const appOrigin = 'https://backend-cloud-jzom.onrender.com';
+                  const appOrigin = process.env.NEXT_PUBLIC_SHOPIFY_APP_URL || 'https://backend-cloud-jzom.onrender.com';
                   const authUrl = `${appOrigin}/api/auth/begin?shop=${encodeURIComponent(shop)}`;
                   window.top!.location.href = authUrl;
                 }
